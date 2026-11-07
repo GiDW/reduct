@@ -1,15 +1,21 @@
-//! The end-of-batch toast notification.
+//! The batch toast notifications: one at the start of a big batch, one at
+//! the end. Both carry the same tag and group, so the end toast replaces the
+//! start toast instead of stacking under it.
 
 use std::path::Path;
 
 use windows::core::HSTRING;
 use windows::Data::Xml::Dom::XmlDocument;
+use windows::Win32::System::Diagnostics::Debug::OutputDebugStringW;
 use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
 
 use crate::summary::{toast_text, Summary};
 
 /// The Store page of Microsoft's HEVC Video Extensions.
 pub(crate) const HEVC_STORE_URI: &str = "ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7";
+
+/// The toast group shared by every Reduct toast.
+const GROUP: &str = "reduct";
 
 /// Tells the user how the batch went. Ignores every error: an unpackaged
 /// run (no package identity, as in the CI smoke test) shows no toast.
@@ -18,15 +24,45 @@ pub fn notify(s: &Summary, log: Option<&Path>, codec_missing: bool) {
     notify_text(&title, &body, log, codec_missing);
 }
 
+/// Tells the user a batch of `count` images has started. Ignores every error.
+pub(crate) fn notify_start(count: usize) {
+    show_or_log(&toast_xml(&start_toast_title(count), "", None, false));
+}
+
 /// Shows a toast with the given copy. Ignores every error.
 pub(crate) fn notify_text(title: &str, body: &str, log: Option<&Path>, codec_missing: bool) {
-    let _ = show(&toast_xml(title, body, log, codec_missing));
+    show_or_log(&toast_xml(title, body, log, codec_missing));
+}
+
+/// The start toast's title: `Optimising N images…`.
+pub(crate) fn start_toast_title(count: usize) -> String {
+    format!("Optimising {count} images\u{2026}")
+}
+
+/// The tag of this batch's toasts: the same for the start and the end toast.
+fn batch_tag() -> String {
+    format!("batch-{}", std::process::id())
+}
+
+/// Shows the toast; a failure only goes to the debugger output.
+fn show_or_log(xml: &str) {
+    if let Err(err) = show(xml) {
+        let line = format!(
+            "Reduct: toast failed: 0x{:08X} {}\n",
+            err.code().0 as u32,
+            err.message().trim_end()
+        );
+        // SAFETY: the HSTRING is NUL-terminated and outlives the call.
+        unsafe { OutputDebugStringW(&HSTRING::from(line)) };
+    }
 }
 
 fn show(xml: &str) -> windows::core::Result<()> {
     let doc = XmlDocument::new()?;
     doc.LoadXml(&HSTRING::from(xml))?;
     let toast = ToastNotification::CreateToastNotification(&doc)?;
+    toast.SetTag(&HSTRING::from(batch_tag()))?;
+    toast.SetGroup(&HSTRING::from(GROUP))?;
     ToastNotificationManager::CreateToastNotifier()?.Show(&toast)
 }
 
@@ -135,6 +171,16 @@ mod tests {
     fn toast_xml_escapes_quotes_and_apostrophes() {
         let xml = toast_xml("No images converted", "Couldn't read the \"selection\"", None, false);
         assert!(xml.contains("<text>Couldn&apos;t read the &quot;selection&quot;</text>"), "{xml}");
+    }
+
+    #[test]
+    fn start_toast_copy_and_xml() {
+        assert_eq!(start_toast_title(500), "Optimising 500 images\u{2026}");
+        assert_eq!(
+            toast_xml(&start_toast_title(20), "", None, false),
+            "<toast><visual><binding template=\"ToastGeneric\"><text>Optimising 20 images\u{2026}</text></binding></visual></toast>"
+        );
+        assert_eq!(batch_tag(), format!("batch-{}", std::process::id()));
     }
 
     #[test]

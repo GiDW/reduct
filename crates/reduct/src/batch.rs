@@ -17,9 +17,13 @@ use reduct_common::naming::{plan_outputs, Planned};
 use reduct_common::settings::Settings;
 use reduct_engine::{commit, decode, encode_jpeg, heic_supported, init_com_mta, ComGuard, EngineError};
 
-use crate::notify::{notify, notify_text};
+use crate::notify::{notify, notify_start, notify_text};
 use crate::paths;
 use crate::summary::{summarize, Outcome};
+
+/// Batches with at least this many supported files show a start toast, so
+/// a long batch does not look like nothing happened.
+const START_TOAST_MIN_FILES: usize = 20;
 
 thread_local! {
     /// This thread's COM initialisation: the guard, or why it failed.
@@ -51,6 +55,9 @@ fn run_in(list: &Path, data_dir: &Path) -> i32 {
     let sources: Vec<PathBuf> = sources.into_iter().filter(|p| is_supported(p)).collect();
     let planned = plan_outputs(&sources, settings.suffix, settings.output, &|p: &Path| p.exists());
 
+    if planned.len() >= START_TOAST_MIN_FILES {
+        notify_start(planned.len());
+    }
     let outcomes = convert_all(&planned, &settings);
     let summary = summarize(&outcomes);
 

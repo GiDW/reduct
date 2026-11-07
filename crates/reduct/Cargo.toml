@@ -32,6 +32,8 @@ features = [
     # The settings dialog (ui.rs).
     "Win32_Foundation",
     "Win32_System_Com",
+    # OutputDebugStringW for toast failures.
+    "Win32_System_Diagnostics_Debug",
     "Win32_System_LibraryLoader",
     "Win32_UI_Controls",
     "Win32_UI_Shell",
