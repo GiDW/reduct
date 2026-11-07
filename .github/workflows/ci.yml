@@ -125,6 +125,9 @@ jobs:
         with: { name: bin-x64, path: bin/x64 }
       - uses: actions/download-artifact@v4
         with: { name: bin-arm64, path: bin/arm64 }
+      # package/priconfig.xml is `makepri createconfig /cf priconfig.xml /dq en-US
+      # /pv 10.0.0` without its <packaging> element: no per-scale resource PRIs,
+      # so one resources.pri holds every candidate. This step flags SDK drift.
       - name: Check priconfig.xml against makepri createconfig
         shell: pwsh
         run: |
@@ -137,11 +140,19 @@ jobs:
           $fresh = Join-Path $env:RUNNER_TEMP 'priconfig.xml'
           & $makepri createconfig /cf $fresh /dq en-US /pv 10.0.0 /o | Out-Null
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::makepri createconfig failed"; exit 1 }
-          $diff = Compare-Object (Get-Content package/priconfig.xml) (Get-Content $fresh)
+          $skip = $false
+          $expected = Get-Content $fresh | Where-Object {
+            if ($_ -match '<packaging>') { $skip = $true }
+            $keep = -not $skip
+            if ($_ -match '</packaging>') { $skip = $false }
+            $keep
+          }
+          $diff = Compare-Object (Get-Content package/priconfig.xml) $expected -SyncWindow 0
           if ($diff) {
-            $diff | Format-Table -AutoSize | Out-String | Write-Host
-            Write-Host '::warning::package/priconfig.xml differs from makepri createconfig output'
-          } else { Write-Host 'priconfig.xml matches makepri createconfig' }
+            Write-Host '--- makepri createconfig output:'
+            Get-Content $fresh | Write-Host
+            Write-Host '::warning::package/priconfig.xml differs from makepri createconfig output (minus <packaging>)'
+          } else { Write-Host 'priconfig.xml matches makepri createconfig (minus <packaging>)' }
       - name: Create the test signing certificate
         id: cert
         shell: pwsh

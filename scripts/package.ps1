@@ -42,10 +42,17 @@ function Find-SdkTool([string]$Name) {
 
 # Runs a tool, echoes its output and fails on a non-zero exit code.
 # $Shown replaces the arguments in the log (used to hide the PFX password).
-function Invoke-Tool([string]$Exe, [string[]]$Arguments, [string]$Shown) {
+# -Utf16: the tool writes UTF-16 to a pipe (makepri does).
+function Invoke-Tool([string]$Exe, [string[]]$Arguments, [string]$Shown, [switch]$Utf16) {
     $label = if ($Shown) { $Shown } else { $Arguments -join ' ' }
     Write-Host "> $(Split-Path $Exe -Leaf) $label"
-    & $Exe @Arguments | ForEach-Object { Write-Host "  $_" }
+    $encoding = [Console]::OutputEncoding
+    if ($Utf16) { [Console]::OutputEncoding = [Text.Encoding]::Unicode }
+    try {
+        & $Exe @Arguments | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "  $_" }
+    } finally {
+        [Console]::OutputEncoding = $encoding
+    }
     if ($LASTEXITCODE -ne 0) { throw "$(Split-Path $Exe -Leaf) failed with exit code $LASTEXITCODE" }
 }
 
@@ -100,7 +107,11 @@ foreach ($arch in $Archs) {
 
     # 3. Index the resources. Written outside the stage so makepri does not index its own output.
     $pri = Join-Path $work "resources-$arch.pri"
-    Invoke-Tool $makepri @('new', '/pr', $stage, '/cf', $priconfig, '/mn', $manifestPath, '/of', $pri, '/o')
+    Invoke-Tool $makepri @('new', '/pr', $stage, '/cf', $priconfig, '/mn', $manifestPath, '/of', $pri, '/o') -Utf16
+    # priconfig.xml has no <packaging> element, so there must be exactly one PRI
+    # (per-scale resource PRIs would be left out of the package).
+    $pris = @(Get-ChildItem $work -Filter "resources-$arch*.pri")
+    if ($pris.Count -ne 1) { throw "makepri wrote $($pris.Count) PRI files: $($pris.Name -join ', ')" }
     Move-Item $pri (Join-Path $stage 'resources.pri')
 
     # 4. Pack.
