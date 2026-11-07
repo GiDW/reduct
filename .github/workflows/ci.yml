@@ -39,8 +39,11 @@ jobs:
           New-Item -ItemType Directory $smoke | Out-Null
           Copy-Item fixtures/orientation/*.jpg $smoke
           Copy-Item fixtures/colour/half-transparent-8x8.png (Join-Path $smoke 'sample.png')
+          # broken.jpg: the first 200 bytes of Landscape_1.jpg, cut inside the
+          # quantisation tables. A cut inside the scan data (which starts at
+          # byte 482) still decodes: WIC fills the missing rows.
           $landscape = [IO.File]::ReadAllBytes((Join-Path $smoke 'Landscape_1.jpg'))
-          [IO.File]::WriteAllBytes((Join-Path $smoke 'broken.jpg'), [byte[]]$landscape[0..1999])
+          [IO.File]::WriteAllBytes((Join-Path $smoke 'broken.jpg'), [byte[]]$landscape[0..199])
 
           # Deterministic settings: never skip an output as larger.
           $data = Join-Path $env:LOCALAPPDATA 'Reduct'
