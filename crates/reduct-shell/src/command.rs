@@ -29,6 +29,10 @@ use crate::{guard, CLSID_OPTIMISE};
 const TITLE: &str = "Optimise with Reduct";
 /// Icon file next to `ReductShell.dll` in the package.
 const ICON_FILE: &str = "reduct-menu.ico";
+/// The app execution alias, relative to `%LOCALAPPDATA%`.
+const ALIAS_PATH: &str = r"Microsoft\WindowsApps\reduct.exe";
+/// The exe next to `ReductShell.dll` in the package, used when the alias is off.
+const PACKAGED_EXE: &str = "Reduct.exe";
 
 #[implement(IExplorerCommand)]
 pub struct Command;
@@ -125,7 +129,9 @@ fn file_system_path(item: &IShellItem) -> Option<PathBuf> {
 }
 
 /// Writes the list file and starts `reduct.exe --batch <list>` without
-/// waiting for it.
+/// waiting for it. Tries the app execution alias first; when that fails (the
+/// user can turn the alias off in Settings) it starts the `Reduct.exe` next
+/// to this DLL in the package folder.
 fn launch(paths: &[PathBuf]) -> Result<()> {
     let list = std::env::temp_dir().join(format!(
         "reduct-{}-{}.txt",
@@ -135,10 +141,13 @@ fn launch(paths: &[PathBuf]) -> Result<()> {
     ));
     listfile::write_list(&list, paths).map_err(io_error)?;
 
-    let result = local_app_data().and_then(|dir| {
-        let exe = dir.join(r"Microsoft\WindowsApps\reduct.exe");
-        start(&exe, &list)
-    });
+    let result = local_app_data()
+        .and_then(|dir| start(&dir.join(ALIAS_PATH), &list))
+        .or_else(|_| {
+            let dll = module_path()?;
+            let dir = dll.parent().ok_or_else(|| Error::from(E_FAIL))?;
+            start(&dir.join(PACKAGED_EXE), &list)
+        });
     if result.is_err() {
         // The exe deletes the list once it has read it; nobody will now.
         let _ = std::fs::remove_file(&list);
