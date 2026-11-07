@@ -20,4 +20,6 @@ workspace = true
 features = [
     "Foundation",
     "Storage",
+    # ApplicationData::LocalFolder is gated on this feature.
+    "Storage_Search",
 ]
