@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Template: scripts/package.ps1 fills in the Identity Version and ProcessorArchitecture placeholders. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  IgnorableNamespaces="uap uap5 rescap com desktop4 desktop5">
+
+  <Identity
+    Name="Oxyde.Reduct"
+    Publisher="CN=7218F926-DACB-453E-B8D1-DB1C47916A85"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="{{ARCH}}" />
+
+  <Properties>
+    <DisplayName>Reduct</DisplayName>
+    <PublisherDisplayName>Oxyde</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Reduct" Executable="Reduct.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Reduct" Description="Optimise images to JPEG"
+          BackgroundColor="transparent"
+          Square150x150Logo="Images\Square150x150Logo.png"
+          Square44x44Logo="Images\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png"
+            Square71x71Logo="Images\Square71x71Logo.png"
+            Square310x310Logo="Images\Square310x310Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="Reduct.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:AppExecutionAlias>
+            <uap5:ExecutionAlias Alias="reduct.exe" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="Reduct">
+              <com:Class Id="3AEBAC59-D582-488D-8254-15CBBF19C662" Path="ReductShell.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <!-- One ItemType per SUPPORTED_EXTENSIONS entry (crates/reduct-common/src/formats.rs). -->
+            <desktop5:ItemType Type=".jpg">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".jpeg">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".jfif">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".png">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".webp">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".heic">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".heif">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type=".avif">
+              <desktop5:Verb Id="Optimise" Clsid="3AEBAC59-D582-488D-8254-15CBBF19C662" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

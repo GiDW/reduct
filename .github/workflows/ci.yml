@@ -113,3 +113,133 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always() && matrix.arch == 'x64'
         with: { name: cargo-lock, path: Cargo.lock }
+
+  package:
+    # Packages only what lands on main or a tag; PRs stop after `build`.
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: bin-x64, path: bin/x64 }
+      - uses: actions/download-artifact@v4
+        with: { name: bin-arm64, path: bin/arm64 }
+      - name: Check priconfig.xml against makepri createconfig
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $makepri = Get-ChildItem $kits -Directory -Filter '10.*' |
+            Where-Object { Test-Path (Join-Path $_.FullName 'x64\makepri.exe') } |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1 |
+            ForEach-Object { Join-Path $_.FullName 'x64\makepri.exe' }
+          $fresh = Join-Path $env:RUNNER_TEMP 'priconfig.xml'
+          & $makepri createconfig /cf $fresh /dq en-US /pv 10.0.0 /o | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::makepri createconfig failed"; exit 1 }
+          $diff = Compare-Object (Get-Content package/priconfig.xml) (Get-Content $fresh)
+          if ($diff) {
+            $diff | Format-Table -AutoSize | Out-String | Write-Host
+            Write-Host '::warning::package/priconfig.xml differs from makepri createconfig output'
+          } else { Write-Host 'priconfig.xml matches makepri createconfig' }
+      - name: Create the test signing certificate
+        id: cert
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bytes = [byte[]]::new(24)
+          [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+          $pw = [Convert]::ToBase64String($bytes)
+          Write-Host "::add-mask::$pw"
+          "password=$pw" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=7218F926-DACB-453E-B8D1-DB1C47916A85' `
+            -KeyUsage DigitalSignature -FriendlyName 'Reduct test signing' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}') `
+            -CertStoreLocation Cert:\CurrentUser\My
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          Export-PfxCertificate -Cert $cert -FilePath (Join-Path $env:RUNNER_TEMP 'reduct-test.pfx') -Password $secure | Out-Null
+          New-Item -ItemType Directory -Force out/sideload | Out-Null
+          Export-Certificate -Cert $cert -FilePath out/sideload/reduct-test.cer | Out-Null
+          Write-Host "Test certificate: $($cert.Thumbprint)"
+      - name: Package
+        id: package
+        shell: pwsh
+        env:
+          SIGN_PASSWORD: ${{ steps.cert.outputs.password }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cargo = Get-Content Cargo.toml -Raw
+          if ($cargo -notmatch '(?ms)^\[workspace\.package\][^\[]*?^version\s*=\s*"(\d+\.\d+\.\d+)"') {
+            Write-Host '::error::no version in [workspace.package]'; exit 1
+          }
+          $version = "$($Matches[1]).0"
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          ./scripts/package.ps1 -Version $version -BinRoot bin -Out out/build `
+            -SignPfx (Join-Path $env:RUNNER_TEMP 'reduct-test.pfx') -SignPassword $env:SIGN_PASSWORD
+
+          Copy-Item "out/build/Reduct_$version.msixbundle" out/sideload
+          New-Item -ItemType Directory -Force out/store | Out-Null
+          Copy-Item "out/build/Reduct_$version.msixupload" out/store
+          @(
+            "Reduct ${version}: test-signed sideload build"
+            ''
+            'This bundle is signed with a throwaway test certificate made by CI.'
+            'Install it on Windows 11 (x64 or ARM64):'
+            ''
+            '1. In an elevated PowerShell (Run as administrator), trust the test certificate:'
+            '   Import-Certificate .\reduct-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople'
+            '2. Install the bundle:'
+            "   Add-AppxPackage .\Reduct_$version.msixbundle"
+            '3. Restart Explorer so the context-menu entry appears:'
+            '   Stop-Process -Name explorer -Force   (Explorer restarts by itself)'
+            ''
+            'Uninstall: Get-AppxPackage Oxyde.Reduct | Remove-AppxPackage'
+          ) | Set-Content out/sideload/INSTALL.txt -Encoding utf8
+          Get-ChildItem out/sideload, out/store | Format-Table Directory, Name, Length -AutoSize | Out-String | Write-Host
+      - name: Inspect the packages
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          function Show-Zip($path) {
+            Write-Host "--- $path"
+            $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $path))
+            try { $zip.Entries | ForEach-Object { Write-Host "  $($_.FullName)  $($_.Length)" } } finally { $zip.Dispose() }
+          }
+          Show-Zip "out/build/Reduct_${env:VERSION}_x64.msix"
+          Show-Zip "out/build/Reduct_${env:VERSION}.msixbundle"
+          Show-Zip "out/build/Reduct_${env:VERSION}.msixupload"
+          $sig = Get-AuthenticodeSignature "out/sideload/Reduct_${env:VERSION}.msixbundle"
+          Write-Host "Sideload bundle signer: $($sig.SignerCertificate.Subject) ($($sig.Status))"
+          if ($sig.SignerCertificate.Subject -ne 'CN=7218F926-DACB-453E-B8D1-DB1C47916A85') {
+            Write-Host '::error::sideload bundle is not signed with the test certificate'; exit 1
+          }
+      # Optional install check (not part of the v1 test scope): continue-on-error
+      # so a runner without AppX deployment support does not block the artifacts.
+      - name: Try installing the signed bundle
+        continue-on-error: true
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "OS: $([Environment]::OSVersion.VersionString)"
+          Import-Certificate out/sideload/reduct-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          Add-AppxPackage "out/sideload/Reduct_${env:VERSION}.msixbundle"
+          $pkg = Get-AppxPackage Oxyde.Reduct
+          if (-not $pkg) { throw 'Oxyde.Reduct is not installed' }
+          $pkg | Format-List Name, Version, Architecture, PublisherId, InstallLocation | Out-String | Write-Host
+          Remove-AppxPackage $pkg.PackageFullName
+          Write-Host 'Install test passed'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reduct-sideload
+          if-no-files-found: error
+          path: out/sideload/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reduct-store
+          if-no-files-found: error
+          path: out/store/
