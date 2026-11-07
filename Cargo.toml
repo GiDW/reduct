@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/reduct-common",
+    "crates/reduct-engine",
+    "crates/reduct",
+    "crates/reduct-shell",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["Gilles De Waele"]
+repository = "https://github.com/GiDW/reduct"
+
+[workspace.dependencies]
+windows = "=0.62.2"
+windows-core = "=0.62.2"
+mozjpeg = "=0.10.13"
+rayon = "=1.12.0"
+embed-resource = "=3.0.12"
+reduct-common = { path = "crates/reduct-common" }
+reduct-engine = { path = "crates/reduct-engine" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "unwind"
+debug = "line-tables-only"

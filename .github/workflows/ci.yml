@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest,  target: x86_64-pc-windows-msvc,  arch: x64 }
+          - { runner: windows-11-arm,  target: aarch64-pc-windows-msvc, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "${{ matrix.target }}" }
+      - uses: ilammy/setup-nasm@v1
+        if: matrix.arch == 'x64'
+      - uses: Swatinem/rust-cache@v2
+        with: { key: "${{ matrix.target }}" }
+      - run: cargo test --workspace --target ${{ matrix.target }}
+      - run: cargo build --workspace --release --target ${{ matrix.target }}
