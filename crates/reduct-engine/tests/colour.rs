@@ -66,3 +66,17 @@ fn alpha_is_flattened_before_scaling() {
     let min = *small.data.iter().min().unwrap();
     assert!(min >= 250, "scaled pixels darkened to {min}: alpha bled into the colour");
 }
+
+/// A one-channel grey JPEG with an embedded Gray Gamma 2.2 profile decodes,
+/// whether or not WIC can apply that profile: stored grey 128 comes out as a
+/// neutral grey of about 129 (128 when only the pixel format is converted).
+#[test]
+fn grey_jpeg_with_gray_profile_decodes() {
+    let _com = init_com_mta().expect("COM init");
+    let img = load("grey-gray-profile-8x8.jpg", None);
+    assert_eq!((img.width, img.height), (8, 8));
+    let [r, g, b] = mean_rgb(&img);
+    println!("grey-gray-profile-8x8.jpg: sRGB mean ({r:.1}, {g:.1}, {b:.1})");
+    assert!((r - g).abs() <= 2.0 && (g - b).abs() <= 2.0, "not neutral: ({r:.1}, {g:.1}, {b:.1})");
+    assert!((g - 128.0).abs() <= 12.0, "grey {g:.1}, expected about 128");
+}

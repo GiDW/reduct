@@ -5,18 +5,25 @@
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 
-use windows::core::{w, Interface, PCWSTR};
+use windows::core::{w, Interface, GUID, PCWSTR};
 use windows::Win32::Foundation::{
     GENERIC_READ, WINCODEC_ERR_COMPONENTNOTFOUND, WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT,
 };
 use windows::Win32::Graphics::Imaging::{
-    GUID_WICPixelFormat24bppRGB, GUID_WICPixelFormat32bppBGRA, IWICBitmapFrameDecode, IWICBitmapSource, IWICColorContext,
+    GUID_WICPixelFormat16bppGray, GUID_WICPixelFormat16bppGrayFixedPoint,
+    GUID_WICPixelFormat16bppGrayHalf, GUID_WICPixelFormat24bppRGB, GUID_WICPixelFormat2bppGray,
+    GUID_WICPixelFormat32bppBGRA, GUID_WICPixelFormat32bppCMYK,
+    GUID_WICPixelFormat32bppGrayFixedPoint, GUID_WICPixelFormat32bppGrayFloat,
+    GUID_WICPixelFormat40bppCMYKAlpha, GUID_WICPixelFormat4bppGray,
+    GUID_WICPixelFormat64bppCMYK, GUID_WICPixelFormat80bppCMYKAlpha,
+    GUID_WICPixelFormat8bppGray, GUID_WICPixelFormatBlackWhite, IWICBitmapFrameDecode,
+    IWICBitmapSource, IWICColorContext,
     IWICImagingFactory, IWICPalette, WICBitmapDitherTypeNone,
     WICBitmapInterpolationModeHighQualityCubic, WICBitmapPaletteTypeCustom,
     WICBitmapTransformFlipHorizontal, WICBitmapTransformFlipVertical, WICBitmapTransformOptions,
     WICBitmapTransformRotate0, WICBitmapTransformRotate180, WICBitmapTransformRotate270,
     WICBitmapTransformRotate90, WICColorContextExifColorSpace, WICColorContextProfile,
-    WICDecodeMetadataCacheOnDemand,
+    WICDecodeMetadataCacheOnDemand, WICRect,
 };
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
 use windows::Win32::System::Variant::VT_UI2;
@@ -233,7 +240,10 @@ fn to_srgb_bgra(
 ///
 /// `Ok(None)` means there is nothing to transform: no colour context, or only
 /// an EXIF colour space that is sRGB or unknown. An ICC profile (or EXIF
-/// Adobe RGB) that WIC cannot apply is an error, not a silent sRGB fallback.
+/// Adobe RGB) that WIC cannot apply is an error, not a silent sRGB fallback,
+/// except for grey and CMYK sources: their profile describes a different
+/// colour model than the BGRA retry hands the transformer, so a failure there
+/// falls back to the plain format conversion (`Ok(None)`).
 fn color_transform(
     factory: &IWICImagingFactory,
     frame: &IWICBitmapFrameDecode,
@@ -241,6 +251,56 @@ fn color_transform(
     let Some(context) = source_color_context(factory, frame)? else {
         return Ok(None);
     };
+    if !is_grey_or_cmyk(frame) {
+        return icc_transform(factory, frame, &context).map(Some);
+    }
+    // Pull one pixel through as well: a transform that initialises but
+    // cannot produce pixels would otherwise fail later, in copy_pixels.
+    match icc_transform(factory, frame, &context) {
+        Ok(transformed) if first_pixel_ok(&transformed) => Ok(Some(transformed)),
+        _ => Ok(None),
+    }
+}
+
+/// Whether the source can deliver its top-left BGRA pixel.
+fn first_pixel_ok(source: &IWICBitmapSource) -> bool {
+    let rect = WICRect { X: 0, Y: 0, Width: 1, Height: 1 };
+    let mut pixel = [0u8; 4];
+    // SAFETY: `pixel` holds one 32bpp pixel, the 1x1 rect's whole output.
+    unsafe { source.CopyPixels(&rect, 4, &mut pixel) }.is_ok()
+}
+
+/// Grey and CMYK pixel formats, whose colour profiles the BGRA retry in
+/// [`icc_transform`] cannot use.
+const GREY_OR_CMYK_FORMATS: [GUID; 13] = [
+    GUID_WICPixelFormatBlackWhite,
+    GUID_WICPixelFormat2bppGray,
+    GUID_WICPixelFormat4bppGray,
+    GUID_WICPixelFormat8bppGray,
+    GUID_WICPixelFormat16bppGray,
+    GUID_WICPixelFormat16bppGrayFixedPoint,
+    GUID_WICPixelFormat16bppGrayHalf,
+    GUID_WICPixelFormat32bppGrayFloat,
+    GUID_WICPixelFormat32bppGrayFixedPoint,
+    GUID_WICPixelFormat32bppCMYK,
+    GUID_WICPixelFormat64bppCMYK,
+    GUID_WICPixelFormat40bppCMYKAlpha,
+    GUID_WICPixelFormat80bppCMYKAlpha,
+];
+
+fn is_grey_or_cmyk(frame: &IWICBitmapFrameDecode) -> bool {
+    // SAFETY: plain COM call on a valid frame.
+    unsafe { frame.GetPixelFormat() }.is_ok_and(|format| GREY_OR_CMYK_FORMATS.contains(&format))
+}
+
+/// Applies `context` (the source's colour space) to the frame, giving sRGB
+/// 32bpp BGRA. Retries from 32bpp BGRA when the transformer does not accept
+/// the decoder's pixel format.
+fn icc_transform(
+    factory: &IWICImagingFactory,
+    frame: &IWICBitmapFrameDecode,
+    context: &IWICColorContext,
+) -> Result<IWICBitmapSource, EngineError> {
     // SAFETY: plain COM calls on valid objects.
     unsafe {
         let srgb = factory
@@ -252,9 +312,9 @@ fn color_transform(
         let transform = factory
             .CreateColorTransformer()
             .map_err(decode_err("colour transform"))?;
-        let first = transform.Initialize(frame, &context, &srgb, &GUID_WICPixelFormat32bppBGRA);
+        let first = transform.Initialize(frame, context, &srgb, &GUID_WICPixelFormat32bppBGRA);
         match first {
-            Ok(()) => return Ok(Some(transform.into())),
+            Ok(()) => return Ok(transform.into()),
             Err(e) if e.code() != WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT => {
                 return Err(EngineError::Decode(describe("colour transform", &e)));
             }
@@ -279,9 +339,9 @@ fn color_transform(
             .CreateColorTransformer()
             .map_err(decode_err("colour transform"))?;
         transform
-            .Initialize(&converter, &context, &srgb, &GUID_WICPixelFormat32bppBGRA)
+            .Initialize(&converter, context, &srgb, &GUID_WICPixelFormat32bppBGRA)
             .map_err(decode_err("colour transform"))?;
-        Ok(Some(transform.into()))
+        Ok(transform.into())
     }
 }
 
