@@ -1,93 +1,61 @@
 //! Detects whether HEIC can be decoded (spec §4.1): WIC needs both the HEIF
 //! Image Extensions (a WIC decoder for the HEIF container) and an HEVC video
-//! decoder (Media Foundation transform).
+//! decoder. Rather than looking for installed components (a GPU driver's HEVC
+//! decoder can be registered without the HEVC Video Extensions that WIC's HEIF
+//! decoder actually needs), the check decodes a tiny embedded HEIC.
 
-use windows::core::{IUnknown, Interface};
-use windows::Win32::Foundation::S_OK;
+use windows::Win32::Foundation::E_FAIL;
 use windows::Win32::Graphics::Imaging::{
-    IWICBitmapCodecInfo, GUID_ContainerFormatHeif, WICComponentEnumerateDefault, WICDecoder,
+    GUID_WICPixelFormat32bppBGRA, IWICPalette, WICBitmapDitherTypeNone,
+    WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
 };
-use windows::Win32::Media::MediaFoundation::{
-    IMFActivate, MFMediaType_Video, MFShutdown, MFStartup, MFTEnumEx, MFVideoFormat_HEVC,
-    MFSTARTUP_LITE, MFT_CATEGORY_VIDEO_DECODER, MFT_ENUM_FLAG_ASYNCMFT, MFT_ENUM_FLAG_HARDWARE,
-    MFT_ENUM_FLAG_SORTANDFILTER, MFT_ENUM_FLAG_SYNCMFT, MFT_REGISTER_TYPE_INFO, MF_VERSION,
-};
-use windows::Win32::System::Com::CoTaskMemFree;
 
 use crate::com::{init_com_mta, wic_factory};
 
-/// True when a WIC decoder for `GUID_ContainerFormatHeif` is installed and
-/// Media Foundation has at least one HEVC video decoder.
+/// A 64x64 solid-colour HEIC (HEVC Main Still Picture), 487 bytes. Made on
+/// macOS from a PNG with `sips -s format heic`; see `assets/README.md`.
+static PROBE_HEIC: &[u8] = include_bytes!("../assets/probe.heic");
+
+/// The probe's size in pixels; a decoder reporting anything else failed.
+const PROBE_SIZE: u32 = 64;
+
+/// True when WIC can decode a HEIC: the embedded probe image opens, its first
+/// frame decodes and its pixels can be copied out.
 ///
 /// Initialises COM (MTA) for the duration of the call if the thread has not
 /// done so; a thread that is already an STA works as well.
 pub fn heic_supported() -> bool {
     let _com = init_com_mta().ok();
-    wic_heif_decoder_present() && hevc_decoder_present()
+    probe_decode().is_ok()
 }
 
-fn wic_heif_decoder_present() -> bool {
-    let Ok(factory) = wic_factory() else {
-        return false;
-    };
-    // SAFETY: plain COM calls; each enumerated element is an owned IUnknown.
+fn probe_decode() -> windows::core::Result<()> {
+    let factory = wic_factory()?;
+    // SAFETY: plain COM calls. The stream reads from a 'static buffer, and
+    // `pixels` holds exactly stride * height bytes.
     unsafe {
-        let Ok(components) = factory
-            .CreateComponentEnumerator(WICDecoder.0 as u32, WICComponentEnumerateDefault.0 as u32)
-        else {
-            return false;
-        };
-        loop {
-            let mut item: [Option<IUnknown>; 1] = [None];
-            let mut fetched = 0u32;
-            if components.Next(&mut item, Some(&mut fetched as *mut u32)) != S_OK || fetched == 0 {
-                return false;
-            }
-            let Some(unknown) = item[0].take() else {
-                continue;
-            };
-            if let Ok(info) = unknown.cast::<IWICBitmapCodecInfo>() {
-                if info.GetContainerFormat().is_ok_and(|g| g == GUID_ContainerFormatHeif) {
-                    return true;
-                }
-            }
+        let stream = factory.CreateStream()?;
+        stream.InitializeFromMemory(PROBE_HEIC)?;
+        let decoder =
+            factory.CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnDemand)?;
+        let frame = decoder.GetFrame(0)?;
+        let converter = factory.CreateFormatConverter()?;
+        converter.Initialize(
+            &frame,
+            &GUID_WICPixelFormat32bppBGRA,
+            WICBitmapDitherTypeNone,
+            None::<&IWICPalette>,
+            0.0,
+            WICBitmapPaletteTypeCustom,
+        )?;
+        let (mut width, mut height) = (0u32, 0u32);
+        converter.GetSize(&mut width, &mut height)?;
+        if (width, height) != (PROBE_SIZE, PROBE_SIZE) {
+            return Err(E_FAIL.into());
         }
+        let stride = PROBE_SIZE * 4;
+        let mut pixels = vec![0u8; (stride * PROBE_SIZE) as usize];
+        converter.CopyPixels(std::ptr::null(), stride, &mut pixels)?;
     }
-}
-
-fn hevc_decoder_present() -> bool {
-    let input = MFT_REGISTER_TYPE_INFO {
-        guidMajorType: MFMediaType_Video,
-        guidSubtype: MFVideoFormat_HEVC,
-    };
-    let flags = MFT_ENUM_FLAG_SYNCMFT
-        | MFT_ENUM_FLAG_ASYNCMFT
-        | MFT_ENUM_FLAG_HARDWARE
-        | MFT_ENUM_FLAG_SORTANDFILTER;
-    let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
-    let mut count = 0u32;
-    // SAFETY: MFTEnumEx fills `activates` with `count` owned IMFActivate
-    // pointers in a CoTaskMemAlloc'ed array; each is released by reading it out
-    // and dropping it, then the array is freed.
-    unsafe {
-        let started = MFStartup(MF_VERSION, MFSTARTUP_LITE).is_ok();
-        let result = MFTEnumEx(
-            MFT_CATEGORY_VIDEO_DECODER,
-            flags,
-            Some(&input as *const _),
-            None,
-            &mut activates,
-            &mut count,
-        );
-        if !activates.is_null() {
-            for i in 0..count as usize {
-                drop(std::ptr::read(activates.add(i)));
-            }
-            CoTaskMemFree(Some(activates as *const _));
-        }
-        if started {
-            let _ = MFShutdown();
-        }
-        result.is_ok() && count > 0
-    }
+    Ok(())
 }
