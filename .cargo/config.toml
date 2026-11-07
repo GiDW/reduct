@@ -1,0 +1,5 @@
+# Link the MSVC C runtime statically (/MT): the MSIX ships no VCLibs
+# dependency, so Reduct.exe and ReductShell.dll must not import
+# VCRUNTIME140.dll. The cc crate (mozjpeg-sys) picks this up as well.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

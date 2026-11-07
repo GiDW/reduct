@@ -91,6 +91,24 @@ jobs:
           $missing = @('DllGetClassObject', 'DllCanUnloadNow') | Where-Object { -not ($exports | Select-String -SimpleMatch $_ -Quiet) }
           if ($missing) { $missing | ForEach-Object { Write-Host "::error::ReductShell.dll does not export $_" }; exit 1 }
           Write-Host 'Exports OK'
+      - name: Check the C runtime is linked statically
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $dumpbin = & $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Host*\*\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { Write-Host '::error::dumpbin.exe not found'; exit 1 }
+          $bad = @()
+          foreach ($bin in 'Reduct.exe', 'ReductShell.dll') {
+            $out = & $dumpbin /nologo /dependents "target\$env:TARGET\release\$bin"
+            $deps = @($out | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() })
+            Write-Host "$bin dependents: $($deps -join ', ')"
+            $bad += $deps | Where-Object { $_ -match '^(vcruntime\d+|msvcp\d+|ucrtbase|api-ms-win-crt-)' } | ForEach-Object { "$bin imports $_" }
+          }
+          if ($bad) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host 'C runtime is static'
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.arch }}
