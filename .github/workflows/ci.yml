@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -25,3 +28,6 @@ jobs:
         with: { key: "${{ matrix.target }}" }
       - run: cargo test --workspace --target ${{ matrix.target }}
       - run: cargo build --workspace --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        if: matrix.arch == 'x64'
+        with: { name: cargo-lock, path: Cargo.lock }
