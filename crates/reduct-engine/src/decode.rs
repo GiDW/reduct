@@ -1,6 +1,6 @@
 //! The WIC decoding pipeline (spec §4.3): decode frame 0, read the EXIF
-//! orientation, convert to sRGB 32bpp BGRA, apply the orientation, optionally
-//! scale down, then flatten alpha onto a background colour.
+//! orientation, convert to sRGB 32bpp BGRA, apply the orientation, flatten
+//! alpha onto a background colour, then optionally scale down.
 
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
