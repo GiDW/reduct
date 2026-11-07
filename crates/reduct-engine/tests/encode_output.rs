@@ -86,7 +86,7 @@ fn commit_takes_next_suffix_when_target_appears() {
     let leftovers: Vec<_> = fs::read_dir(dir)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.contains(".tmp-"))
+        .filter(|name| name.contains(".tmp-") || name.ends_with(".reduct-tmp"))
         .collect();
     assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
 }

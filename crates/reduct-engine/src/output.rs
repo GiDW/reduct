@@ -28,7 +28,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// This is the real collision guard. Planning compares lowercased paths,
 /// which only approximates NTFS case folding and cannot see files created
 /// after planning; here the file system decides. `planned.dir` is created if
-/// needed, the bytes go to a temp file `<stem>.tmp-<pid>-<n>.jpg` in that
+/// needed, the bytes go to a temp file `<stem>.tmp-<pid>-<n>.reduct-tmp` in that
 /// folder (`n` is a process-wide counter; a temp name that already exists
 /// is left alone and the next `n` is tried), and the temp file is moved to
 /// `candidate(stem, style, k)` with `MoveFileExW(MOVEFILE_WRITE_THROUGH)`, never with
@@ -90,7 +90,7 @@ fn write_temp(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
     let pid = std::process::id();
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let tmp = planned.dir.join(format!("{}.tmp-{pid}-{n}.jpg", planned.stem));
+        let tmp = planned.dir.join(format!("{}.tmp-{pid}-{n}.reduct-tmp", planned.stem));
         match write_new(&tmp, bytes) {
             Ok(()) => return Ok(tmp),
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
