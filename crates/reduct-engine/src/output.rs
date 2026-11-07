@@ -5,6 +5,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use reduct_common::naming::{candidate, Planned};
 use windows::core::PCWSTR;
@@ -16,32 +17,27 @@ use crate::error::EngineError;
 /// How many suffixes past `planned.k` are tried before giving up.
 const MAX_RETRIES: u32 = 1000;
 
+/// How many temp names are tried before giving up.
+const MAX_TEMP_ATTEMPTS: u32 = 100;
+
+/// Process-wide counter that makes every temp name unique within the process.
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 /// Writes `bytes` to the planned output and returns the path actually used.
 ///
 /// This is the real collision guard. Planning compares lowercased paths,
 /// which only approximates NTFS case folding and cannot see files created
 /// after planning; here the file system decides. `planned.dir` is created if
-/// needed, the bytes go to a temp file `<stem>.tmp-<pid>-<k>.jpg` in that
-/// folder, and the temp file is moved to `candidate(stem, style, k)` with
-/// `MoveFileExW(MOVEFILE_WRITE_THROUGH)`, never with
+/// needed, the bytes go to a temp file `<stem>.tmp-<pid>-<n>.jpg` in that
+/// folder (`n` is a process-wide counter; a temp name that already exists
+/// is left alone and the next `n` is tried), and the temp file is moved to
+/// `candidate(stem, style, k)` with `MoveFileExW(MOVEFILE_WRITE_THROUGH)`, never with
 /// `MOVEFILE_REPLACE_EXISTING`. If the name is taken, the next `k` is tried,
 /// up to `planned.k + 1000`. The temp file is deleted on every failure.
 pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
     fs::create_dir_all(&planned.dir)?;
 
-    let tmp = planned.dir.join(format!(
-        "{}.tmp-{}-{}.jpg",
-        planned.stem,
-        std::process::id(),
-        planned.k
-    ));
-    if let Err(err) = write_new(&tmp, bytes) {
-        // Only remove what we created: an AlreadyExists temp belongs to someone else.
-        if err.kind() != io::ErrorKind::AlreadyExists {
-            let _ = fs::remove_file(&tmp);
-        }
-        return Err(err.into());
-    }
+    let tmp = write_temp(bytes, planned)?;
 
     let tmp_wide = wide(&tmp);
     let last = planned.k.saturating_add(MAX_RETRIES);
@@ -84,6 +80,29 @@ pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
             candidate(&planned.stem, planned.style, planned.k),
             candidate(&planned.stem, planned.style, last)
         ),
+    )))
+}
+
+/// Writes `bytes` to a fresh temp file next to the planned output and returns
+/// its path. A name that is already taken belongs to someone else: it is left
+/// alone and the next counter value is tried.
+fn write_temp(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
+    let pid = std::process::id();
+    for _ in 0..MAX_TEMP_ATTEMPTS {
+        let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = planned.dir.join(format!("{}.tmp-{pid}-{n}.jpg", planned.stem));
+        match write_new(&tmp, bytes) {
+            Ok(()) => return Ok(tmp),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(err) => {
+                let _ = fs::remove_file(&tmp);
+                return Err(err.into());
+            }
+        }
+    }
+    Err(EngineError::Io(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        format!("no free temp name for {} after {MAX_TEMP_ATTEMPTS} attempts", planned.stem),
     )))
 }
 
