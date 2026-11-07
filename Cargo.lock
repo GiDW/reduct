@@ -215,6 +215,8 @@ name = "reduct-shell"
 version = "1.0.0"
 dependencies = [
  "reduct-common",
+ "windows",
+ "windows-core",
 ]
 
 [[package]]

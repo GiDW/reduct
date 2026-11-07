@@ -12,3 +12,19 @@ crate-type = ["cdylib"]
 
 [dependencies]
 reduct-common.workspace = true
+windows-core.workspace = true
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    # CreateProcessW is gated on this feature (SECURITY_ATTRIBUTES).
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    # GetTickCount64, used in the list file name.
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+]

@@ -76,6 +76,21 @@ jobs:
           }
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host 'Smoke test passed'
+      - name: Check ReductShell.dll exports
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $dumpbin = & $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Host*\*\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { Write-Host '::error::dumpbin.exe not found'; exit 1 }
+          Write-Host "dumpbin: $dumpbin"
+          $exports = & $dumpbin /nologo /exports "target\$env:TARGET\release\ReductShell.dll" | Out-String
+          Write-Host $exports
+          $missing = @('DllGetClassObject', 'DllCanUnloadNow') | Where-Object { -not ($exports | Select-String -SimpleMatch $_ -Quiet) }
+          if ($missing) { $missing | ForEach-Object { Write-Host "::error::ReductShell.dll does not export $_" }; exit 1 }
+          Write-Host 'Exports OK'
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.arch }}
