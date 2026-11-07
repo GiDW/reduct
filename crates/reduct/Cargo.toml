@@ -13,3 +13,11 @@ path = "src/main.rs"
 [dependencies]
 reduct-common.workspace = true
 reduct-engine.workspace = true
+rayon.workspace = true
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Foundation",
+    "Storage",
+]

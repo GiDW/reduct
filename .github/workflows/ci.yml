@@ -28,6 +28,60 @@ jobs:
         with: { key: "${{ matrix.target }}" }
       - run: cargo test --workspace --locked --target ${{ matrix.target }}
       - run: cargo build --workspace --release --locked --target ${{ matrix.target }}
+      - name: Batch smoke test
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $smoke = Join-Path $env:RUNNER_TEMP 'smoke'
+          Remove-Item -Recurse -Force $smoke -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory $smoke | Out-Null
+          Copy-Item fixtures/orientation/*.jpg $smoke
+          Copy-Item fixtures/colour/half-transparent-8x8.png (Join-Path $smoke 'sample.png')
+          $landscape = [IO.File]::ReadAllBytes((Join-Path $smoke 'Landscape_1.jpg'))
+          [IO.File]::WriteAllBytes((Join-Path $smoke 'broken.jpg'), [byte[]]$landscape[0..1999])
+
+          # Deterministic settings: never skip an output as larger.
+          $data = Join-Path $env:LOCALAPPDATA 'Reduct'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Remove-Item -Recurse -Force (Join-Path $data 'logs') -ErrorAction SilentlyContinue
+          Set-Content -Path (Join-Path $data 'settings.ini') -Value 'skip_if_larger=false' -Encoding utf8NoBOM
+
+          $list = Join-Path $env:RUNNER_TEMP 'smoke-list.txt'
+          $paths = Get-ChildItem $smoke -File | ForEach-Object { $_.FullName }
+          [IO.File]::WriteAllText($list, (($paths -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+
+          $exe = "target\$env:TARGET\release\Reduct.exe"
+          $proc = Start-Process -Wait -PassThru -FilePath $exe -ArgumentList '--batch', "`"$list`""
+          Write-Host "Reduct.exe exit code: $($proc.ExitCode)"
+          Get-ChildItem $smoke | Format-Table Name, Length -AutoSize | Out-String | Write-Host
+
+          $errors = @()
+          if ($proc.ExitCode -ne 1) { $errors += "expected exit code 1, got $($proc.ExitCode)" }
+          $expected = @(1..8 | ForEach-Object { "Landscape_${_}_2.jpg" }) + 'sample.jpg'
+          foreach ($name in $expected) {
+            if (-not (Test-Path (Join-Path $smoke $name))) { $errors += "missing output $name" }
+          }
+          $tmp = @(Get-ChildItem $smoke -Filter '*.tmp-*')
+          if ($tmp.Count -gt 0) { $errors += "temp files left: $($tmp.Name -join ', ')" }
+          if (Test-Path $list) { $errors += 'list file was not deleted' }
+          $logs = @(Get-ChildItem (Join-Path $data 'logs') -Filter 'failures-*.txt' -ErrorAction SilentlyContinue)
+          foreach ($log in $logs) { Write-Host "--- $($log.Name)"; Get-Content $log.FullName | Write-Host }
+          if (-not ($logs | Where-Object { (Get-Content $_.FullName -Raw) -match 'broken\.jpg' })) {
+            $errors += 'no failures log mentions broken.jpg'
+          }
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host 'Smoke test passed'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            target/${{ matrix.target }}/release/Reduct.exe
+            target/${{ matrix.target }}/release/Reduct.pdb
+            target/${{ matrix.target }}/release/ReductShell.dll
+            target/${{ matrix.target }}/release/ReductShell.pdb
       # Cargo.lock procedure: test and build run with --locked, so adding a
       # dependency makes the first run fail. These two x64 steps always run
       # afterwards: `cargo update --workspace` adds the missing entries to the
