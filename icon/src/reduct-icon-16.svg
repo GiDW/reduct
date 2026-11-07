@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Hand-tuned 16 px version of the Reduct icon: no shadows, a 1 px gap between the tiles instead. -->
+  <defs>
+    <linearGradient id="back" x1="1" y1="1" x2="11" y2="11" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B9DDFD"/><stop offset="1" stop-color="#86BEF4"/>
+    </linearGradient>
+    <linearGradient id="front" x1="5" y1="5" x2="15" y2="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3AA2F4"/><stop offset="1" stop-color="#0B5DB6"/>
+    </linearGradient>
+    <mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="16" height="16">
+      <rect width="16" height="16" fill="#fff"/>
+      <rect x="4" y="4" width="12" height="12" rx="3.5" fill="#000"/>
+    </mask>
+    <clipPath id="fc"><rect x="5" y="5" width="10" height="10" rx="2.5"/></clipPath>
+  </defs>
+  <rect x="1" y="1" width="10" height="10" rx="2.5" fill="url(#back)" mask="url(#gap)"/>
+  <rect x="5" y="5" width="10" height="10" rx="2.5" fill="url(#front)"/>
+  <g clip-path="url(#fc)" fill="#fff">
+    <path d="M4.6 15.4 L8.6 10.4 L11 13.2 L12.3 12 L15.4 15.4 Z"/>
+    <circle cx="12.4" cy="7.8" r="1.25"/>
+  </g>
+</svg>
