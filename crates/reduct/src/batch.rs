@@ -79,6 +79,11 @@ pub fn install_quiet_panic_hook() {
     panic::set_hook(Box::new(|_| {}));
 }
 
+/// At most this many files are converted at once. Each worker holds the
+/// decoded, flattened and encoded copies of one image (0.5 to 0.8 GB for a
+/// 48 MP HEIC), so one worker per logical CPU could run a PC out of memory.
+const MAX_WORKERS: usize = 4;
+
 /// Converts every planned file on a rayon pool whose threads are COM MTA
 /// threads. Falls back to the current thread if the pool cannot be built.
 fn convert_all(planned: &[Planned], settings: &Settings) -> Vec<Outcome> {
@@ -86,7 +91,9 @@ fn convert_all(planned: &[Planned], settings: &Settings) -> Vec<Outcome> {
     let work = || -> Vec<Outcome> {
         planned.par_iter().map(|p| convert_one(p, settings, &heic)).collect()
     };
+    let workers = std::thread::available_parallelism().map_or(1, |n| n.get()).min(MAX_WORKERS);
     let pooled = ThreadPoolBuilder::new()
+        .num_threads(workers)
         .thread_name(|i| format!("reduct-worker-{i}"))
         .start_handler(|_| com_start())
         .exit_handler(|_| com_exit())
@@ -169,9 +176,10 @@ fn try_convert(planned: &Planned, settings: &Settings, heic: &OnceLock<bool>) ->
     Ok(Outcome::Converted { source_bytes, output_bytes })
 }
 
-/// HEIF failures count as a missing codec when the HEIF/HEVC extensions are
-/// absent (WIC reports a corrupt HEIC and a missing decoder alike, so the
-/// error itself does not tell). `heic_supported` runs once per batch.
+/// A `.heic`/`.heif` failure counts as a missing codec when the HEIC probe
+/// (`heic_supported`, a real decode of a tiny embedded HEIC) fails: WIC
+/// reports a corrupt HEIC and a missing decoder alike, so the error itself
+/// does not tell. The probe runs at most once per batch.
 fn classify_decode_error(source: &Path, err: EngineError, heic: &OnceLock<bool>) -> Failure {
     if is_heif(source) && !*heic.get_or_init(heic_supported) {
         return ("HEIC needs Microsoft's HEIF and HEVC extensions".to_owned(), true);

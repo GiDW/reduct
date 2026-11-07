@@ -31,6 +31,15 @@ pub fn encode_jpeg(img: &RgbImage, quality: u8) -> Result<Vec<u8>, EngineError> 
     }
     let quality = quality.clamp(1, 100);
 
+    // The output usually ends up well under an eighth of the RGB size. Reserve
+    // that much fallibly so a PC short of memory fails this file instead of
+    // aborting the process; growth past it (and mozjpeg's own allocations,
+    // which unwind on failure) is not covered.
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(expected / 8)
+        .map_err(|_| EngineError::Encode("not enough memory for this image".into()))?;
+
     // mozjpeg reports errors by unwinding; catch them here.
     let result = catch_unwind(AssertUnwindSafe(|| -> std::io::Result<Vec<u8>> {
         // `new` calls jpeg_set_defaults under the default JCP_MAX_COMPRESSION
@@ -43,7 +52,7 @@ pub fn encode_jpeg(img: &RgbImage, quality: u8) -> Result<Vec<u8>, EngineError> 
         comp.set_optimize_coding(true);
         comp.set_chroma_sampling_pixel_sizes((2, 2), (2, 2));
 
-        let mut started = comp.start_compress(Vec::with_capacity(expected / 8))?;
+        let mut started = comp.start_compress(output)?;
         started.write_scanlines(&img.data)?;
         started.finish()
     }));

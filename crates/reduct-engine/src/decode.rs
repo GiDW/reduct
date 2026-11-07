@@ -54,7 +54,7 @@ pub fn decode(
     let upright = RgbImage {
         width,
         height,
-        data: flatten_bgra(&pixels, background),
+        data: try_flatten_bgra(&pixels, background).ok_or_else(out_of_memory)?,
     };
     drop(pixels);
     scale_down(&factory, upright, max_long_edge)
@@ -64,6 +64,22 @@ pub fn decode(
 /// packed RGB. Per channel: `out = (c * a + bg * (255 - a) + 127) / 255`.
 pub fn flatten_bgra(bgra: &[u8], background: [u8; 3]) -> Vec<u8> {
     let mut rgb = Vec::with_capacity(bgra.len() / 4 * 3);
+    flatten_into(bgra, background, &mut rgb);
+    rgb
+}
+
+/// [`flatten_bgra`] that returns `None` instead of aborting the process when
+/// the output buffer cannot be allocated.
+fn try_flatten_bgra(bgra: &[u8], background: [u8; 3]) -> Option<Vec<u8>> {
+    let mut rgb = Vec::new();
+    rgb.try_reserve_exact(bgra.len() / 4 * 3).ok()?;
+    flatten_into(bgra, background, &mut rgb);
+    Some(rgb)
+}
+
+/// Appends the flattened pixels to `rgb`, which must already have room for
+/// them (so pushing never reallocates).
+fn flatten_into(bgra: &[u8], background: [u8; 3], rgb: &mut Vec<u8>) {
     for px in bgra.chunks_exact(4) {
         let a = u32::from(px[3]);
         let mix = |c: u8, bg: u8| ((u32::from(c) * a + u32::from(bg) * (255 - a) + 127) / 255) as u8;
@@ -71,7 +87,18 @@ pub fn flatten_bgra(bgra: &[u8], background: [u8; 3]) -> Vec<u8> {
         rgb.push(mix(px[1], background[1]));
         rgb.push(mix(px[0], background[2]));
     }
-    rgb
+}
+
+/// A zeroed buffer of `len` bytes, or `None` when it cannot be allocated.
+fn try_zeroed(len: usize) -> Option<Vec<u8>> {
+    let mut buffer = Vec::new();
+    buffer.try_reserve_exact(len).ok()?;
+    buffer.resize(len, 0);
+    Some(buffer)
+}
+
+fn out_of_memory() -> EngineError {
+    EngineError::Decode("not enough memory for this image".into())
 }
 
 /// Maps an EXIF orientation (1..=8) to the WIC transform that makes it upright.
@@ -357,7 +384,8 @@ fn scale_down(
     let Some((new_width, new_height)) = scaled_size(image.width, image.height, max_long_edge) else {
         return Ok(image);
     };
-    // SAFETY: plain COM calls; CreateBitmapFromMemory copies `image.data`,
+    // SAFETY: plain COM calls; CreateBitmapFromMemory copies `image.data`
+    // (an allocation failure there is an E_OUTOFMEMORY error, not an abort),
     // which holds exactly width * 3 * height bytes.
     let scaler = unsafe {
         let bitmap = factory
@@ -402,7 +430,7 @@ fn copy_pixels(
         .ok_or_else(|| EngineError::Decode("image too large".into()))?;
     let len = u32::try_from(u64::from(stride) * u64::from(height))
         .map_err(|_| EngineError::Decode("image too large".into()))?;
-    let mut buffer = vec![0u8; len as usize];
+    let mut buffer = try_zeroed(len as usize).ok_or_else(out_of_memory)?;
     // SAFETY: a null rect means the whole image; `buffer` holds stride * height bytes.
     unsafe { source.CopyPixels(std::ptr::null(), stride, &mut buffer) }
         .map_err(decode_err("copy pixels"))?;
@@ -427,6 +455,14 @@ mod tests {
         let black_bg = flatten_bgra(&[0, 0, 255, 128], [0, 0, 0]);
         // (255*128 + 127)/255 = 128
         assert_eq!(black_bg, vec![128, 0, 0]);
+    }
+
+    #[test]
+    fn fallible_helpers_match_the_infallible_ones() {
+        let bgra = [0, 0, 255, 255, 0, 255, 0, 0, 255, 0, 0, 128];
+        assert_eq!(try_flatten_bgra(&bgra, [255, 255, 255]), Some(flatten_bgra(&bgra, [255, 255, 255])));
+        assert_eq!(try_zeroed(5), Some(vec![0u8; 5]));
+        assert_eq!(try_zeroed(usize::MAX), None, "an impossible size fails instead of aborting");
     }
 
     #[test]
