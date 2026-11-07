@@ -4,6 +4,7 @@ mod batch;
 mod notify;
 mod paths;
 mod summary;
+mod ui;
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -17,18 +18,13 @@ fn main() {
 /// Anything else exits with `2`.
 fn dispatch(args: &[OsString]) -> i32 {
     match args {
-        [] => settings_dialog(),
+        [] => ui::run_settings(),
         [flag, list] if flag == "--batch" => {
             batch::install_quiet_panic_hook();
             batch::run(Path::new(list))
         }
         _ => 2,
     }
-}
-
-/// Stub until the settings dialog lands (Task 13).
-fn settings_dialog() -> i32 {
-    0
 }
 
 #[cfg(test)]
@@ -44,10 +40,5 @@ mod tests {
         assert_eq!(dispatch(&args(&["--frobnicate"])), 2);
         assert_eq!(dispatch(&args(&["--batch"])), 2);
         assert_eq!(dispatch(&args(&["--batch", "a", "b"])), 2);
-    }
-
-    #[test]
-    fn no_arguments_opens_the_settings_stub() {
-        assert_eq!(dispatch(&[]), 0);
     }
 }

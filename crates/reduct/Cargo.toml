@@ -15,6 +15,9 @@ reduct-common.workspace = true
 reduct-engine.workspace = true
 rayon.workspace = true
 
+[build-dependencies]
+embed-resource.workspace = true
+
 [dependencies.windows]
 workspace = true
 features = [
@@ -26,4 +29,11 @@ features = [
     "Storage_Search",
     # ToastNotificationManager and ToastNotification.
     "UI_Notifications",
+    # The settings dialog (ui.rs).
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Controls",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
 ]

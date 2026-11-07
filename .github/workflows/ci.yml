@@ -76,6 +76,67 @@ jobs:
           }
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host 'Smoke test passed'
+      - name: Check the Reduct.exe resources
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class Res {
+              [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern IntPtr LoadLibraryExW(string path, IntPtr file, uint flags);
+              [DllImport("kernel32", SetLastError = true)]
+              static extern IntPtr FindResourceW(IntPtr module, IntPtr name, IntPtr type);
+              [DllImport("kernel32", SetLastError = true)]
+              static extern IntPtr LoadResource(IntPtr module, IntPtr info);
+              [DllImport("kernel32")]
+              static extern IntPtr LockResource(IntPtr data);
+              [DllImport("kernel32")]
+              static extern uint SizeofResource(IntPtr module, IntPtr info);
+              // LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE
+              public static IntPtr Open(string path) { return LoadLibraryExW(path, IntPtr.Zero, 0x22); }
+              public static byte[] Get(IntPtr module, int type, int name) {
+                  IntPtr info = FindResourceW(module, (IntPtr)name, (IntPtr)type);
+                  if (info == IntPtr.Zero) return null;
+                  uint size = SizeofResource(module, info);
+                  byte[] bytes = new byte[size];
+                  Marshal.Copy(LockResource(LoadResource(module, info)), bytes, 0, (int)size);
+                  return bytes;
+              }
+          }
+          '@
+          $exe = (Resolve-Path "target\$env:TARGET\release\Reduct.exe").Path
+          $module = [Res]::Open($exe)
+          if ($module -eq [IntPtr]::Zero) { Write-Host '::error::could not load Reduct.exe as a data file'; exit 1 }
+          $errors = @()
+          # RT_GROUP_ICON 14, RT_DIALOG 5, RT_VERSION 16, RT_MANIFEST 24
+          foreach ($r in @(@{ Type = 14; Name = 1; What = 'icon IDI_APP' }, @{ Type = 5; Name = 101; What = 'dialog IDD_SETTINGS' },
+                          @{ Type = 16; Name = 1; What = 'VS_VERSION_INFO' }, @{ Type = 24; Name = 1; What = 'manifest 1' })) {
+            $bytes = [Res]::Get($module, $r.Type, $r.Name)
+            if ($bytes) { Write-Host "$($r.What): $($bytes.Length) bytes" } else { $errors += "Reduct.exe has no $($r.What)" }
+          }
+          $manifest = [Res]::Get($module, 24, 1)
+          if ($manifest) {
+            $text = [Text.Encoding]::UTF8.GetString($manifest)
+            Write-Host $text
+            foreach ($needle in 'Microsoft.Windows.Common-Controls', 'PerMonitorV2', '<activeCodePage', '8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a') {
+              if (-not $text.Contains($needle)) { $errors += "manifest lacks $needle" }
+            }
+          }
+          $cargo = Get-Content Cargo.toml -Raw
+          $null = $cargo -match '(?ms)^\[workspace\.package\][^\[]*?^version\s*=\s*"(\d+\.\d+\.\d+)"'
+          $version = "$($Matches[1]).0"
+          $info = (Get-Item $exe).VersionInfo
+          $info | Format-List FileVersion, ProductVersion, CompanyName, ProductName, FileDescription, LegalCopyright | Out-String | Write-Host
+          if ($info.FileVersion -ne $version) { $errors += "FileVersion is '$($info.FileVersion)', expected $version" }
+          if ($info.ProductVersion -ne $version) { $errors += "ProductVersion is '$($info.ProductVersion)', expected $version" }
+          if ($info.CompanyName -ne 'Oxyde') { $errors += "CompanyName is '$($info.CompanyName)'" }
+          if ($info.ProductName -ne 'Reduct') { $errors += "ProductName is '$($info.ProductName)'" }
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host 'Resources OK'
       - name: Check ReductShell.dll exports
         shell: pwsh
         env:

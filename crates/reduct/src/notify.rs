@@ -9,7 +9,7 @@ use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
 use crate::summary::{toast_text, Summary};
 
 /// The Store page of Microsoft's HEVC Video Extensions.
-const HEVC_STORE_URI: &str = "ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7";
+pub(crate) const HEVC_STORE_URI: &str = "ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7";
 
 /// Tells the user how the batch went. Ignores every error: an unpackaged
 /// run (no package identity, as in the CI smoke test) shows no toast.

@@ -38,8 +38,6 @@ fn unpackaged_dir() -> PathBuf {
 }
 
 /// Reads `data_dir()\settings.ini`; a missing or unreadable file gives the defaults.
-// Used by the settings dialog (Task 13); the batch uses `load_settings_in`.
-#[allow(dead_code)]
 pub fn load_settings() -> Settings {
     load_settings_in(&data_dir())
 }
@@ -50,8 +48,6 @@ pub fn load_settings_in(dir: &Path) -> Settings {
 }
 
 /// Writes `data_dir()\settings.ini`.
-// Used by the settings dialog (Task 13).
-#[allow(dead_code)]
 pub fn save_settings(settings: &Settings) -> io::Result<()> {
     save_settings_to(&data_dir().join(SETTINGS_FILE), settings)
 }
