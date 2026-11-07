@@ -70,6 +70,10 @@ pub fn flatten_bgra(bgra: &[u8], background: [u8; 3]) -> Vec<u8> {
 }
 
 /// Maps an EXIF orientation (1..=8) to the WIC transform that makes it upright.
+///
+/// WIC flips before it rotates, so the transposed orientations 5 and 7 pair
+/// the flip with the opposite rotation to the spec table (verified on the
+/// orientation fixtures in CI).
 fn transform_for(orientation: u16) -> WICBitmapTransformOptions {
     let combine = |a: WICBitmapTransformOptions, b: WICBitmapTransformOptions| {
         WICBitmapTransformOptions(a.0 | b.0)
@@ -78,9 +82,9 @@ fn transform_for(orientation: u16) -> WICBitmapTransformOptions {
         2 => WICBitmapTransformFlipHorizontal,
         3 => WICBitmapTransformRotate180,
         4 => WICBitmapTransformFlipVertical,
-        5 => combine(WICBitmapTransformRotate90, WICBitmapTransformFlipHorizontal),
+        5 => combine(WICBitmapTransformRotate270, WICBitmapTransformFlipHorizontal),
         6 => WICBitmapTransformRotate90,
-        7 => combine(WICBitmapTransformRotate270, WICBitmapTransformFlipHorizontal),
+        7 => combine(WICBitmapTransformRotate90, WICBitmapTransformFlipHorizontal),
         8 => WICBitmapTransformRotate270,
         _ => WICBitmapTransformRotate0,
     }
@@ -328,8 +332,8 @@ mod tests {
         assert_eq!(transform_for(0), WICBitmapTransformRotate0);
         assert_eq!(transform_for(9), WICBitmapTransformRotate0);
         assert_eq!(transform_for(6), WICBitmapTransformRotate90);
-        assert_eq!(transform_for(5).0, 1 | 8);
-        assert_eq!(transform_for(7).0, 3 | 8);
+        assert_eq!(transform_for(5).0, 3 | 8);
+        assert_eq!(transform_for(7).0, 1 | 8);
     }
 
     #[test]
