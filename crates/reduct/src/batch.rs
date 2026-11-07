@@ -17,7 +17,7 @@ use reduct_common::naming::{plan_outputs, Planned};
 use reduct_common::settings::Settings;
 use reduct_engine::{commit, decode, encode_jpeg, heic_supported, init_com_mta, ComGuard, EngineError};
 
-use crate::notify::notify;
+use crate::notify::{notify, notify_text};
 use crate::paths;
 use crate::summary::{summarize, Outcome};
 
@@ -30,17 +30,24 @@ thread_local! {
 /// nothing failed, `1` when at least one file failed or the list file could
 /// not be read.
 pub fn run(list: &Path) -> i32 {
+    run_in(list, &paths::data_dir())
+}
+
+/// `run` with the data folder (settings and logs) passed in, so tests can
+/// keep away from the real one.
+fn run_in(list: &Path, data_dir: &Path) -> i32 {
     let sources = match read_list(list) {
         Ok(sources) => sources,
         Err(err) => {
             let reason = format!("could not read the list file: {err}");
-            write_failure_log(&[(list, reason.as_str())]);
+            let log = write_failure_log(data_dir, &[(list, reason.as_str())]);
+            notify_text("No images converted", "Couldn't read the selection", log.as_deref(), false);
             return 1;
         }
     };
     let _ = fs::remove_file(list);
 
-    let settings = paths::load_settings();
+    let settings = paths::load_settings_in(data_dir);
     let sources: Vec<PathBuf> = sources.into_iter().filter(|p| is_supported(p)).collect();
     let planned = plan_outputs(&sources, settings.suffix, settings.output, &|p: &Path| p.exists());
 
@@ -54,7 +61,7 @@ pub fn run(list: &Path) -> i32 {
             _ => None,
         })
         .collect();
-    let log = if failures.is_empty() { None } else { write_failure_log(&failures) };
+    let log = if failures.is_empty() { None } else { write_failure_log(data_dir, &failures) };
 
     notify(&summary, log.as_deref(), summary.codec_missing > 0);
 
@@ -185,10 +192,10 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
     }
 }
 
-/// Writes `data_dir()\logs\failures-<unix-secs>-<pid>.txt` with one
+/// Writes `<data_dir>\logs\failures-<unix-secs>-<pid>.txt` with one
 /// `<path>\t<reason>` line per failure and returns its path.
-fn write_failure_log(failures: &[(&Path, &str)]) -> Option<PathBuf> {
-    let dir = paths::data_dir().join("logs");
+fn write_failure_log(data_dir: &Path, failures: &[(&Path, &str)]) -> Option<PathBuf> {
+    let dir = data_dir.join("logs");
     fs::create_dir_all(&dir).ok()?;
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let path = dir.join(format!("failures-{secs}-{}.txt", std::process::id()));
@@ -231,8 +238,21 @@ mod tests {
     }
 
     #[test]
-    fn missing_list_file_fails_with_exit_code_1() {
+    fn missing_list_file_fails_with_exit_code_1_and_logs() {
+        let data = std::env::temp_dir().join(format!("reduct-data-{}-missing-list", std::process::id()));
+        let _ = fs::remove_dir_all(&data);
+        fs::create_dir_all(&data).unwrap();
         let list = std::env::temp_dir().join("reduct-list-that-does-not-exist.txt");
-        assert_eq!(run(&list), 1);
+
+        assert_eq!(run_in(&list, &data), 1);
+
+        let logs: Vec<PathBuf> = fs::read_dir(data.join("logs"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect();
+        let text = fs::read_to_string(&logs[0]).unwrap();
+        let _ = fs::remove_dir_all(&data);
+        assert_eq!(logs.len(), 1);
+        assert!(text.contains("reduct-list-that-does-not-exist.txt\tcould not read the list file"), "{text}");
     }
 }

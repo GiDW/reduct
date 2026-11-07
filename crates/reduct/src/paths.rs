@@ -38,8 +38,15 @@ fn unpackaged_dir() -> PathBuf {
 }
 
 /// Reads `data_dir()\settings.ini`; a missing or unreadable file gives the defaults.
+// Used by the settings dialog (Task 13); the batch uses `load_settings_in`.
+#[allow(dead_code)]
 pub fn load_settings() -> Settings {
-    load_settings_from(&data_dir().join(SETTINGS_FILE))
+    load_settings_in(&data_dir())
+}
+
+/// Reads `<dir>\settings.ini`; a missing or unreadable file gives the defaults.
+pub fn load_settings_in(dir: &Path) -> Settings {
+    load_settings_from(&dir.join(SETTINGS_FILE))
 }
 
 /// Writes `data_dir()\settings.ini`.

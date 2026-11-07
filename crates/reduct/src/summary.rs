@@ -44,15 +44,14 @@ pub fn summarize(outcomes: &[Outcome]) -> Summary {
     s
 }
 
-/// The toast's title and body for a finished batch.
-// Used by the real toast in Task 12; `notify` is a stub until then.
-#[allow(dead_code)]
+/// The toast's title and body for a finished batch. A saving under 1 KB
+/// counts as no saving.
 pub fn toast_text(s: &Summary) -> (String, String) {
     let title = if s.converted == 0 {
         "No images converted".to_owned()
     } else {
         let images = if s.converted == 1 { "image" } else { "images" };
-        if s.bytes_saved > 0 {
+        if s.bytes_saved >= 1000 {
             format!(
                 "Converted {} {images}, saved {}",
                 s.converted,
@@ -77,15 +76,19 @@ pub fn toast_text(s: &Summary) -> (String, String) {
 }
 
 /// Formats a byte count in decimal units: whole `KB` under 1 MB, one decimal
-/// from 1 MB to under 10 MB, whole `MB` from 10 MB.
-#[allow(dead_code)]
+/// from 1 MB to under 10 MB, whole `MB` from 10 MB (including values that
+/// round up to 10.0 MB).
 pub fn format_size(bytes: u64) -> String {
     const MB: u64 = 1_000_000;
     if bytes < MB {
         format!("{} KB", (bytes + 500) / 1000)
     } else if bytes < 10 * MB {
         let tenths = (bytes + 50_000) / 100_000;
-        format!("{}.{} MB", tenths / 10, tenths % 10)
+        if tenths >= 100 {
+            format!("{} MB", tenths / 10)
+        } else {
+            format!("{}.{} MB", tenths / 10, tenths % 10)
+        }
     } else {
         format!("{} MB", (bytes + MB / 2) / MB)
     }
@@ -137,6 +140,13 @@ mod tests {
     }
 
     #[test]
+    fn savings_under_one_kb_count_as_none() {
+        assert_eq!(toast_text(&summary(2, 0, 0, 0, 999)), text("Converted 2 images", ""));
+        assert_eq!(toast_text(&summary(2, 0, 0, 0, 1)), text("Converted 2 images", ""));
+        assert_eq!(toast_text(&summary(2, 0, 0, 0, 1000)), text("Converted 2 images, saved 1 KB", ""));
+    }
+
+    #[test]
     fn format_sizes() {
         assert_eq!(format_size(999_999), "1000 KB");
         assert_eq!(format_size(4_200_000), "4.2 MB");
@@ -144,6 +154,8 @@ mod tests {
         assert_eq!(format_size(1_000_000), "1.0 MB");
         assert_eq!(format_size(10_000_000), "10 MB");
         assert_eq!(format_size(12_345), "12 KB");
+        assert_eq!(format_size(9_949_999), "9.9 MB");
+        assert_eq!(format_size(9_950_000), "10 MB");
     }
 
     #[test]

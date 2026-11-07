@@ -18,8 +18,12 @@ rayon.workspace = true
 [dependencies.windows]
 workspace = true
 features = [
+    # XmlDocument for the toast XML.
+    "Data_Xml_Dom",
     "Foundation",
     "Storage",
     # ApplicationData::LocalFolder is gated on this feature.
     "Storage_Search",
+    # ToastNotificationManager and ToastNotification.
+    "UI_Notifications",
 ]
