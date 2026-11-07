@@ -1,12 +1,11 @@
 //! JPEG encoding with mozjpeg (spec §3.3), using mediamill's settings.
 
-use std::any::Any;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use mozjpeg::{ColorSpace, Compress};
 
 use crate::decode::RgbImage;
-use crate::error::EngineError;
+use crate::error::{panic_message, EngineError};
 
 /// Encodes `img` as a progressive JPEG at `quality` (1-100).
 ///
@@ -61,15 +60,5 @@ pub fn encode_jpeg(img: &RgbImage, quality: u8) -> Result<Vec<u8>, EngineError> 
         Ok(Ok(bytes)) => Ok(bytes),
         Ok(Err(err)) => Err(EngineError::Encode(err.to_string())),
         Err(payload) => Err(EngineError::Encode(panic_message(payload.as_ref()))),
-    }
-}
-
-fn panic_message(payload: &(dyn Any + Send)) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        (*s).to_owned()
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "mozjpeg failed".to_owned()
     }
 }

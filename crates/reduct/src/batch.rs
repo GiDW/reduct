@@ -1,6 +1,5 @@
 //! Headless batch conversion (spec §4.3): `Reduct.exe --batch <listfile>`.
 
-use std::any::Any;
 use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::io;
@@ -15,7 +14,9 @@ use reduct_common::formats::{is_heif, is_jpeg, is_supported};
 use reduct_common::listfile::read_list;
 use reduct_common::naming::{plan_outputs, Planned};
 use reduct_common::settings::Settings;
-use reduct_engine::{commit, decode, encode_jpeg, heic_supported, init_com_mta, ComGuard, EngineError};
+use reduct_engine::{
+    commit, decode, encode_jpeg, heic_supported, init_com_mta, panic_message, ComGuard, EngineError,
+};
 
 use crate::notify::{notify, notify_start, notify_text};
 use crate::paths;
@@ -170,7 +171,7 @@ fn try_convert(planned: &Planned, settings: &Settings, heic: &OnceLock<bool>) ->
         return Ok(Outcome::SkippedLarger);
     }
 
-    let written = commit(&bytes, planned).map_err(|err| (err.to_string(), false))?;
+    let written = commit(&bytes, planned).map_err(|err| (commit_reason(&err), false))?;
     if settings.keep_file_date {
         // Best effort: the output exists either way.
         if let Ok(modified) = source_meta.modified() {
@@ -197,13 +198,14 @@ fn classify_decode_error(source: &Path, err: EngineError, heic: &OnceLock<bool>)
     }
 }
 
-fn panic_message(payload: &(dyn Any + Send)) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        (*s).to_owned()
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "unknown panic".to_owned()
+/// The failure-log reason for a failed write or move. Access denied gets a
+/// plain sentence; anything else keeps the error's own text.
+fn commit_reason(err: &EngineError) -> String {
+    match err {
+        EngineError::Io(e) if e.raw_os_error() == Some(5) || e.kind() == io::ErrorKind::PermissionDenied => {
+            "can't write to this folder (access denied)".to_owned()
+        }
+        other => other.to_string(),
     }
 }
 
@@ -250,6 +252,14 @@ mod tests {
             text,
             "C:\\Foto's\\Été.heic\tno codec\r\nC:\\x\\broken.jpg\tdecode failed: 0x1 bad  data\r\n"
         );
+    }
+
+    #[test]
+    fn access_denied_reads_as_a_plain_sentence() {
+        let denied = EngineError::Io(io::Error::from_raw_os_error(5));
+        assert_eq!(commit_reason(&denied), "can't write to this folder (access denied)");
+        let full = EngineError::Io(io::Error::from_raw_os_error(112));
+        assert_eq!(commit_reason(&full), full.to_string());
     }
 
     #[test]

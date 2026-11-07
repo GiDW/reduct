@@ -52,3 +52,15 @@ pub(crate) fn describe(context: &str, err: &windows::core::Error) -> String {
         format!("{context}: 0x{code:08X} {}", message.trim_end())
     }
 }
+
+/// The text of a caught panic: its `&str` or `String` payload, otherwise
+/// `unknown panic`.
+pub fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_owned()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_owned()
+    }
+}
