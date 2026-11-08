@@ -32,6 +32,9 @@ pub struct Settings {
     pub max_long_edge: Option<u32>,
     pub background: Background,
     pub keep_file_date: bool,
+    /// Skip a JPEG whose optimised version would not be smaller. Not in the
+    /// settings window: only `settings.ini` can turn it off (CI does, so its
+    /// smoke test gets an output for every fixture).
     pub skip_if_larger: bool,
 }
 

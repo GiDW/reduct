@@ -16,6 +16,8 @@ Reduct is a Windows 11 app that turns images into smaller JPEGs from File Explor
 
 When the output name is taken, Reduct adds a suffix: `photo.jpg` becomes `photo_2.jpg`.
 
+When an optimised JPEG would not be smaller than the source JPEG, Reduct writes nothing for that file and counts it as skipped.
+
 ## Settings
 
 Start Reduct from the Start menu to open its settings.
@@ -26,7 +28,6 @@ Start Reduct from the Start menu to open its settings.
 - **Limit size:** off (default), or scale down to a 2048 or 3840 px long edge.
 - **Transparent areas:** flattened onto white (default) or black.
 - **Keep the original file date:** copies the original's modified time to the output (default off).
-- **Keep the original JPEG if the result is larger:** skips a JPEG when the optimised version would be bigger (default on).
 
 The settings window also shows whether HEIC support is installed and links to the third-party licences.
 

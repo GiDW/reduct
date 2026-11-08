@@ -37,7 +37,6 @@ const IDC_NAME_TAKEN: i32 = 1005;
 const IDC_LIMIT_SIZE: i32 = 1006;
 const IDC_BACKGROUND: i32 = 1007;
 const IDC_KEEP_DATE: i32 = 1008;
-const IDC_SKIP_LARGER: i32 = 1009;
 const IDC_HEIC_STATUS: i32 = 1010;
 const IDC_HEIC_STORE: i32 = 1011;
 const IDC_LICENCES: i32 = 1012;
@@ -55,6 +54,8 @@ const BACKGROUND: [&str; 2] = ["White", "Black"];
 const HEIC_INSTALLED: &str = "HEIC support: installed";
 const HEIC_MISSING: &str = "HEIC support: missing. HEIC photos need Microsoft's HEVC Video Extensions.";
 const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.txt";
+/// A copy for when the file isn't next to the exe (an unpackaged build).
+const NOTICES_TEXT: &str = include_str!("../../../THIRD-PARTY-NOTICES.txt");
 
 /// What the dialog needs between messages: the settings it was opened with
 /// (so values the dialog can't show survive) and whether the user picked a
@@ -159,7 +160,6 @@ fn init_dialog(hwnd: HWND) {
             SendDlgItemMessageW(hwnd, id, CB_SETCURSEL, WPARAM(selected), LPARAM(0));
         }
         let _ = CheckDlgButton(hwnd, IDC_KEEP_DATE, check_state(settings.keep_file_date));
-        let _ = CheckDlgButton(hwnd, IDC_SKIP_LARGER, check_state(settings.skip_if_larger));
     }
 
     // heic_supported() initialises COM as MTA on the calling thread, so it
@@ -206,7 +206,6 @@ fn on_ok(hwnd: HWND) {
         limit_changed,
         background: selection(hwnd, IDC_BACKGROUND),
         keep_date: is_checked(hwnd, IDC_KEEP_DATE),
-        skip_larger: is_checked(hwnd, IDC_SKIP_LARGER),
     };
     match paths::save_settings(&apply_form(&original, &form)) {
         Ok(()) => end(hwnd, ID_OK),
@@ -215,10 +214,21 @@ fn on_ok(hwnd: HWND) {
     }
 }
 
+/// Opens the notices next to the exe (as installed from the package). Without
+/// them there, as with a bare CI build, writes the embedded copy to the data
+/// folder and opens that.
 fn open_licences(hwnd: HWND) {
-    let Some(path) = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join(NOTICES_FILE))) else {
-        message_box(hwnd, &format!("Couldn't find {NOTICES_FILE}."));
-        return;
+    let beside_exe = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join(NOTICES_FILE)));
+    let path = match beside_exe.filter(|p| p.is_file()) {
+        Some(path) => path,
+        None => {
+            let path = paths::data_dir().join(NOTICES_FILE);
+            if let Err(e) = std::fs::write(&path, NOTICES_TEXT) {
+                message_box(hwnd, &format!("Couldn't write {}: {e}", path.display()));
+                return;
+            }
+            path
+        }
     };
     open(hwnd, &wide_os(path.as_os_str()));
 }
@@ -299,7 +309,6 @@ struct Form {
     limit_changed: bool,
     background: Option<usize>,
     keep_date: bool,
-    skip_larger: bool,
 }
 
 /// The settings to save: `original` with the dialog's values applied.
@@ -323,7 +332,6 @@ fn apply_form(original: &Settings, form: &Form) -> Settings {
         s.background = background;
     }
     s.keep_file_date = form.keep_date;
-    s.skip_if_larger = form.skip_larger;
     s
 }
 
@@ -404,7 +412,6 @@ mod tests {
             limit_changed: false,
             background: Some(background_index(s.background)),
             keep_date: s.keep_file_date,
-            skip_larger: s.skip_if_larger,
         }
     }
 
@@ -478,7 +485,6 @@ mod tests {
             limit_changed: true,
             background: Some(1),
             keep_date: true,
-            skip_larger: false,
         };
         assert_eq!(
             apply_form(&s, &form),
@@ -489,7 +495,7 @@ mod tests {
                 max_long_edge: Some(3840),
                 background: Background::Black,
                 keep_file_date: true,
-                skip_if_larger: false,
+                skip_if_larger: true,
             }
         );
     }

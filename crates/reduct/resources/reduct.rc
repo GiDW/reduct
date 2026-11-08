@@ -47,7 +47,7 @@ BEGIN
 END
 
 // The combo box entries and the HEIC status text are filled in by src/ui.rs.
-IDD_SETTINGS DIALOGEX 0, 0, 264, 228
+IDD_SETTINGS DIALOGEX 0, 0, 264, 214
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Reduct settings"
 FONT 9, "Segoe UI", 400, 0, 0x1
@@ -68,10 +68,9 @@ BEGIN
     LTEXT           "Transparent areas", IDC_STATIC, 7, 108, 108, 8
     COMBOBOX        IDC_BACKGROUND, 120, 106, 137, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     AUTOCHECKBOX    "Keep the original file date", IDC_KEEP_DATE, 7, 128, 250, 10
-    AUTOCHECKBOX    "Keep the original JPEG if the result is larger", IDC_SKIP_LARGER, 7, 142, 250, 10
-    LTEXT           "", IDC_HEIC_STATUS, 7, 162, 250, 18
-    PUSHBUTTON      "Get from Microsoft Store", IDC_HEIC_STORE, 7, 182, 110, 14
-    PUSHBUTTON      "Licences", IDC_LICENCES, 7, 207, 60, 14
-    DEFPUSHBUTTON   "OK", IDOK, 150, 207, 50, 14
-    PUSHBUTTON      "Cancel", IDCANCEL, 207, 207, 50, 14
+    LTEXT           "", IDC_HEIC_STATUS, 7, 148, 250, 18
+    PUSHBUTTON      "Get from Microsoft Store", IDC_HEIC_STORE, 7, 168, 110, 14
+    PUSHBUTTON      "Licences", IDC_LICENCES, 7, 193, 60, 14
+    DEFPUSHBUTTON   "OK", IDOK, 150, 193, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 207, 193, 50, 14
 END
