@@ -77,7 +77,7 @@ const NOTICES_TEXT: &str = include_str!("../../../THIRD-PARTY-NOTICES.txt");
 
 /// What the dialog needs between messages: the settings it was opened with
 /// (so values the dialog can't show survive) and whether the user picked a
-/// `Limit size` entry.
+/// `Image size` entry.
 struct State {
     original: Settings,
     limit_changed: bool,
