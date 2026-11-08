@@ -18,6 +18,13 @@ When the output name is taken, Reduct adds a suffix: `photo.jpg` becomes `photo_
 
 When an optimised JPEG would not be smaller than the source JPEG, Reduct writes nothing for that file and counts it as skipped.
 
+## Progress
+
+A batch that takes longer than half a second opens a small progress window with a count, a progress bar, the file being worked on and a **Cancel** button. Cancel finishes the files already being converted and skips the rest. Images already optimised stay.
+
+- **No errors:** the window shows the result for two seconds and closes itself. A batch that finishes within half a second shows nothing.
+- **Errors:** the window stays open with the result, **Show details** (the failures log) and, when HEIC support is missing, **Get HEVC extension**.
+
 ## Settings
 
 Start Reduct from the Start menu to open its settings.
@@ -38,7 +45,7 @@ Windows does not decode HEIC out of the box. Reduct uses Microsoft's own codecs 
 - **HEIF Image Extensions**: free, and often preinstalled on Windows 11.
 - **HEVC Video Extensions**: [Microsoft Store page](https://apps.microsoft.com/detail/9NMZLZ57R3T7), or `ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7` to open it in the Store app. Many PCs already have the free "from Device Manufacturer" version.
 
-When a codec is missing, the settings window and the result notification say so, with a button that opens the Store page.
+When a codec is missing, the settings window and the progress window say so, with a button that opens the Store page.
 
 ## Requirements
 
@@ -68,7 +75,7 @@ To uninstall: `Get-AppxPackage Oxyde.Reduct | Remove-AppxPackage`. The `.msixupl
 
 | Path | Contents |
 | --- | --- |
-| [crates/reduct](crates/reduct) | `Reduct.exe`: batch runs, the result notification and the settings window |
+| [crates/reduct](crates/reduct) | `Reduct.exe`: batch runs, the progress window and the settings window |
 | [crates/reduct-engine](crates/reduct-engine) | Decoding through WIC, mozjpeg encoding and writing the output files |
 | [crates/reduct-common](crates/reduct-common) | Shared logic: supported formats, output naming, settings and the batch list file |
 | [crates/reduct-shell](crates/reduct-shell) | `ReductShell.dll`: the File Explorer context-menu command |

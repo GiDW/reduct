@@ -74,3 +74,21 @@ BEGIN
     DEFPUSHBUTTON   "OK", IDOK, 150, 193, 50, 14
     PUSHBUTTON      "Cancel", IDCANCEL, 207, 193, 50, 14
 END
+
+// The batch progress window (src/progress.rs): created hidden and shown once
+// a batch has run for half a second. The buttons below Cancel start hidden
+// (src/progress.rs hides them) and appear only on a result with errors.
+IDD_PROGRESS DIALOGEX 0, 0, 260, 76
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "Reduct"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "Preparing…", IDC_PROGRESS_STATUS, 7, 7, 246, 10, SS_NOPREFIX | SS_ENDELLIPSIS
+    CONTROL         "", IDC_PROGRESS_BAR, "msctls_progress32", 0x0, 7, 21, 246, 8
+    LTEXT           "", IDC_PROGRESS_DETAIL, 7, 34, 246, 18, SS_NOPREFIX
+    PUSHBUTTON      "Show details", IDC_SHOW_LOG, 49, 55, 60, 14
+    PUSHBUTTON      "Get HEVC extension", IDC_GET_HEVC, 113, 55, 86, 14
+    PUSHBUTTON      "Close", IDOK, 203, 55, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 203, 55, 50, 14
+END

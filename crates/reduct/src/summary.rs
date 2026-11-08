@@ -1,4 +1,4 @@
-//! Per-file outcomes, the batch summary and the toast copy.
+//! Per-file outcomes, the batch summary and the result copy.
 
 use std::path::PathBuf;
 
@@ -19,6 +19,8 @@ pub struct Summary {
     pub failed: u32,
     /// Failures caused by a missing HEIC codec (also counted in `failed`).
     pub codec_missing: u32,
+    /// Files left out because the batch was cancelled before they started.
+    pub cancelled: u32,
     /// Source bytes minus output bytes over the converted files; negative
     /// when the outputs are bigger in total.
     pub bytes_saved: i64,
@@ -44,21 +46,17 @@ pub fn summarize(outcomes: &[Outcome]) -> Summary {
     s
 }
 
-/// The toast's title and body for a finished batch. A saving under 1 KB
-/// counts as no saving.
-pub fn toast_text(s: &Summary) -> (String, String) {
+/// The progress window's headline and detail line for a finished batch. A
+/// saving under 1 KB counts as no saving.
+pub fn result_text(s: &Summary) -> (String, String) {
     let title = if s.converted == 0 {
-        "No images converted".to_owned()
+        "No images optimised".to_owned()
     } else {
         let images = if s.converted == 1 { "image" } else { "images" };
         if s.bytes_saved >= 1000 {
-            format!(
-                "Converted {} {images}, saved {}",
-                s.converted,
-                format_size(s.bytes_saved as u64)
-            )
+            format!("{} {images} optimised, saved {}", s.converted, format_size(s.bytes_saved as u64))
         } else {
-            format!("Converted {} {images}", s.converted)
+            format!("{} {images} optimised", s.converted)
         }
     };
 
@@ -71,6 +69,9 @@ pub fn toast_text(s: &Summary) -> (String, String) {
     }
     if s.codec_missing > 0 {
         extras.push("HEIC needs Microsoft's HEVC extension".to_owned());
+    }
+    if s.cancelled > 0 {
+        extras.push(format!("{} cancelled", s.cancelled));
     }
     (title, extras.join(", "))
 }
@@ -99,7 +100,7 @@ mod tests {
     use super::*;
 
     fn summary(converted: u32, skipped: u32, failed: u32, codec_missing: u32, bytes_saved: i64) -> Summary {
-        Summary { converted, skipped, failed, codec_missing, bytes_saved }
+        Summary { converted, skipped, failed, codec_missing, cancelled: 0, bytes_saved }
     }
 
     fn text(title: &str, body: &str) -> (String, String) {
@@ -107,43 +108,49 @@ mod tests {
     }
 
     #[test]
-    fn toast_text_cases() {
+    fn result_text_cases() {
         // Something converted, with a saving.
         assert_eq!(
-            toast_text(&summary(42, 0, 0, 0, 61_000_000)),
-            text("Converted 42 images, saved 61 MB", "")
+            result_text(&summary(42, 0, 0, 0, 61_000_000)),
+            text("42 images optimised, saved 61 MB", "")
         );
         assert_eq!(
-            toast_text(&summary(42, 2, 3, 0, 61_000_000)),
-            text("Converted 42 images, saved 61 MB", "2 skipped (already smaller), 3 failed")
+            result_text(&summary(42, 2, 3, 0, 61_000_000)),
+            text("42 images optimised, saved 61 MB", "2 skipped (already smaller), 3 failed")
         );
         // Something converted, no saving.
-        assert_eq!(toast_text(&summary(3, 0, 0, 0, 0)), text("Converted 3 images", ""));
+        assert_eq!(result_text(&summary(3, 0, 0, 0, 0)), text("3 images optimised", ""));
         assert_eq!(
-            toast_text(&summary(3, 1, 0, 0, -5_000)),
-            text("Converted 3 images", "1 skipped (already smaller)")
+            result_text(&summary(3, 1, 0, 0, -5_000)),
+            text("3 images optimised", "1 skipped (already smaller)")
         );
         // Nothing converted.
         assert_eq!(
-            toast_text(&summary(0, 2, 3, 3, 0)),
+            result_text(&summary(0, 2, 3, 3, 0)),
             text(
-                "No images converted",
+                "No images optimised",
                 "2 skipped (already smaller), 3 failed, HEIC needs Microsoft's HEVC extension"
             )
         );
         // Singular.
         assert_eq!(
-            toast_text(&summary(1, 0, 0, 0, 4_200_000)),
-            text("Converted 1 image, saved 4.2 MB", "")
+            result_text(&summary(1, 0, 0, 0, 4_200_000)),
+            text("1 image optimised, saved 4.2 MB", "")
         );
-        assert_eq!(toast_text(&summary(1, 0, 1, 0, 0)), text("Converted 1 image", "1 failed"));
+        assert_eq!(result_text(&summary(1, 0, 1, 0, 0)), text("1 image optimised", "1 failed"));
+    }
+
+    #[test]
+    fn cancelled_files_are_counted_last() {
+        let s = Summary { cancelled: 6, ..summary(4, 0, 1, 0, 2_000_000) };
+        assert_eq!(result_text(&s), text("4 images optimised, saved 2.0 MB", "1 failed, 6 cancelled"));
     }
 
     #[test]
     fn savings_under_one_kb_count_as_none() {
-        assert_eq!(toast_text(&summary(2, 0, 0, 0, 999)), text("Converted 2 images", ""));
-        assert_eq!(toast_text(&summary(2, 0, 0, 0, 1)), text("Converted 2 images", ""));
-        assert_eq!(toast_text(&summary(2, 0, 0, 0, 1000)), text("Converted 2 images, saved 1 KB", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 999)), text("2 images optimised", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 1)), text("2 images optimised", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 1000)), text("2 images optimised, saved 1 KB", ""));
     }
 
     #[test]

@@ -1,11 +1,14 @@
-//! Headless batch conversion (spec §4.3): `Reduct.exe --batch <listfile>`.
+//! Batch conversion (spec §4.3): `Reduct.exe --batch <listfile> [--no-window]`.
+//! The conversion runs on a worker thread; the main thread shows the progress
+//! window (progress.rs) unless `--no-window` is given.
 
 use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::io;
 use std::panic::{self, catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rayon::prelude::*;
@@ -18,36 +21,135 @@ use reduct_engine::{
     commit, decode, encode_jpeg, heic_supported, init_com_mta, panic_message, ComGuard, EngineError,
 };
 
-use crate::notify::{notify, notify_start, notify_text};
 use crate::paths;
-use crate::summary::{summarize, Outcome};
-
-/// Batches with at least this many supported files show a start toast, so
-/// a long batch does not look like nothing happened.
-const START_TOAST_MIN_FILES: usize = 20;
+use crate::progress;
+use crate::summary::{result_text, summarize, Outcome, Summary};
 
 thread_local! {
     /// This thread's COM initialisation: the guard, or why it failed.
     static COM: RefCell<Option<Result<ComGuard, String>>> = const { RefCell::new(None) };
 }
 
-/// Runs a batch from a list file and returns the process exit code: `0` when
-/// nothing failed, `1` when at least one file failed or the list file could
-/// not be read.
-pub fn run(list: &Path) -> i32 {
-    run_in(list, &paths::data_dir())
+/// How far a running batch is, shared between the worker and the progress
+/// window. The window also uses it to ask the worker to stop.
+#[derive(Default)]
+pub struct Progress {
+    /// Files in the batch; `0` until the list is read and planned.
+    total: AtomicUsize,
+    done: AtomicUsize,
+    cancelled: AtomicBool,
+    /// The file name of the file a worker started most recently.
+    current: Mutex<String>,
 }
 
-/// `run` with the data folder (settings and logs) passed in, so tests can
-/// keep away from the real one.
-fn run_in(list: &Path, data_dir: &Path) -> i32 {
+impl Progress {
+    pub fn total(&self) -> usize {
+        self.total.load(Ordering::Relaxed)
+    }
+
+    pub fn done(&self) -> usize {
+        self.done.load(Ordering::Relaxed)
+    }
+
+    pub fn current(&self) -> String {
+        self.current.lock().map(|c| c.clone()).unwrap_or_default()
+    }
+
+    /// Files that haven't started yet are left out; files already being
+    /// converted finish.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
+    fn start(&self, source: &Path) {
+        let name = source.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if let Ok(mut current) = self.current.lock() {
+            *current = name;
+        }
+    }
+
+    fn finish_one(&self) {
+        self.done.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// How a batch ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Finished {
+    pub summary: Summary,
+    /// The failures log, when something failed.
+    pub log: Option<PathBuf>,
+    /// Why the batch couldn't run at all (the list file was unreadable, or
+    /// the worker thread died).
+    pub problem: Option<&'static str>,
+}
+
+impl Finished {
+    fn problem(problem: &'static str, log: Option<PathBuf>) -> Finished {
+        Finished { summary: Summary::default(), log, problem: Some(problem) }
+    }
+
+    /// For a worker thread that panicked outside the per-file guard.
+    pub fn crashed() -> Finished {
+        Finished::problem("Something went wrong", None)
+    }
+
+    pub fn has_errors(&self) -> bool {
+        self.problem.is_some() || self.summary.failed > 0
+    }
+
+    /// `0` when nothing failed, `1` otherwise.
+    pub fn exit_code(&self) -> i32 {
+        i32::from(self.has_errors())
+    }
+
+    pub fn codec_missing(&self) -> bool {
+        self.summary.codec_missing > 0
+    }
+
+    /// The result's headline and detail line.
+    pub fn text(&self) -> (String, String) {
+        match self.problem {
+            Some(problem) => ("No images optimised".to_owned(), problem.to_owned()),
+            None => result_text(&self.summary),
+        }
+    }
+}
+
+/// Runs a batch from a list file and returns the process exit code: `0` when
+/// nothing failed, `1` when at least one file failed or the list file could
+/// not be read. With `window`, the progress window shows while it runs.
+pub fn run(list: &Path, window: bool) -> i32 {
+    let progress = Arc::new(Progress::default());
+    let worker = {
+        let list = list.to_path_buf();
+        let progress = Arc::clone(&progress);
+        std::thread::Builder::new()
+            .name("reduct-batch".to_owned())
+            .spawn(move || run_in(&list, &paths::data_dir(), &progress))
+    };
+    let finished = match worker {
+        Ok(worker) if window => progress::run(progress, worker),
+        Ok(worker) => worker.join().unwrap_or_else(|_| Finished::crashed()),
+        // No thread: run here, without a window.
+        Err(_) => run_in(list, &paths::data_dir(), &progress),
+    };
+    finished.exit_code()
+}
+
+/// The batch itself, with the data folder (settings and logs) passed in so
+/// tests can keep away from the real one.
+fn run_in(list: &Path, data_dir: &Path, progress: &Progress) -> Finished {
     let sources = match read_list(list) {
         Ok(sources) => sources,
         Err(err) => {
             let reason = format!("could not read the list file: {err}");
             let log = write_failure_log(data_dir, &[(list, reason.as_str())]);
-            notify_text("No images converted", "Couldn't read the selection", log.as_deref(), false);
-            return 1;
+            return Finished::problem("Couldn't read the selection", log);
         }
     };
     let _ = fs::remove_file(list);
@@ -56,11 +158,10 @@ fn run_in(list: &Path, data_dir: &Path) -> i32 {
     let sources: Vec<PathBuf> = sources.into_iter().filter(|p| is_supported(p)).collect();
     let planned = plan_outputs(&sources, settings.suffix, settings.output, &|p: &Path| p.exists());
 
-    if planned.len() >= START_TOAST_MIN_FILES {
-        notify_start(planned.len());
-    }
-    let outcomes = convert_all(&planned, &settings);
-    let summary = summarize(&outcomes);
+    progress.total.store(planned.len(), Ordering::Relaxed);
+    let outcomes = convert_all(&planned, &settings, progress);
+    let mut summary = summarize(&outcomes);
+    summary.cancelled = planned.len().saturating_sub(outcomes.len()) as u32;
 
     let failures: Vec<(&Path, &str)> = outcomes
         .iter()
@@ -70,14 +171,7 @@ fn run_in(list: &Path, data_dir: &Path) -> i32 {
         })
         .collect();
     let log = if failures.is_empty() { None } else { write_failure_log(data_dir, &failures) };
-
-    notify(&summary, log.as_deref(), summary.codec_missing > 0);
-
-    if summary.failed > 0 {
-        1
-    } else {
-        0
-    }
+    Finished { summary, log, problem: None }
 }
 
 /// Silences the default panic message for the batch. The exe has no
@@ -94,11 +188,19 @@ const MAX_WORKERS: usize = 4;
 
 /// Converts every planned file on a rayon pool whose threads are COM MTA
 /// threads. Falls back to the current thread if the pool cannot be built.
-fn convert_all(planned: &[Planned], settings: &Settings) -> Vec<Outcome> {
+/// After a cancel, files that haven't started are left out of the result.
+fn convert_all(planned: &[Planned], settings: &Settings, progress: &Progress) -> Vec<Outcome> {
     let heic = OnceLock::new();
-    let work = || -> Vec<Outcome> {
-        planned.par_iter().map(|p| convert_one(p, settings, &heic)).collect()
+    let step = |p: &Planned| -> Option<Outcome> {
+        if progress.is_cancelled() {
+            return None;
+        }
+        progress.start(&p.source);
+        let outcome = convert_one(p, settings, &heic);
+        progress.finish_one();
+        Some(outcome)
     };
+    let work = || -> Vec<Outcome> { planned.par_iter().filter_map(step).collect() };
     let workers = std::thread::available_parallelism().map_or(1, |n| n.get()).min(MAX_WORKERS);
     let pooled = ThreadPoolBuilder::new()
         .num_threads(workers)
@@ -112,7 +214,7 @@ fn convert_all(planned: &[Planned], settings: &Settings) -> Vec<Outcome> {
         Ok(outcomes) => outcomes,
         Err(_) => {
             com_start();
-            let outcomes = planned.iter().map(|p| convert_one(p, settings, &heic)).collect();
+            let outcomes = planned.iter().filter_map(step).collect();
             com_exit();
             outcomes
         }
@@ -269,7 +371,9 @@ mod tests {
         fs::create_dir_all(&data).unwrap();
         let list = std::env::temp_dir().join("reduct-list-that-does-not-exist.txt");
 
-        assert_eq!(run_in(&list, &data), 1);
+        let finished = run_in(&list, &data, &Progress::default());
+        assert_eq!(finished.exit_code(), 1);
+        assert_eq!(finished.text().1, "Couldn't read the selection");
 
         let logs: Vec<PathBuf> = fs::read_dir(data.join("logs"))
             .unwrap()

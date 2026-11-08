@@ -45,6 +45,8 @@ jobs:
           $landscape = [IO.File]::ReadAllBytes((Join-Path $smoke 'Landscape_1.jpg'))
           [IO.File]::WriteAllBytes((Join-Path $smoke 'broken.jpg'), [byte[]]$landscape[0..199])
 
+          # --no-window: a batch with errors keeps the progress window open
+          # until someone closes it, which would hang the job.
           # Deterministic settings: never skip an output as larger.
           $data = Join-Path $env:LOCALAPPDATA 'Reduct'
           New-Item -ItemType Directory -Force $data | Out-Null
@@ -56,7 +58,7 @@ jobs:
           [IO.File]::WriteAllText($list, (($paths -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 
           $exe = "target\$env:TARGET\release\Reduct.exe"
-          $proc = Start-Process -Wait -PassThru -FilePath $exe -ArgumentList '--batch', "`"$list`""
+          $proc = Start-Process -Wait -PassThru -FilePath $exe -ArgumentList '--batch', "`"$list`"", '--no-window'
           Write-Host "Reduct.exe exit code: $($proc.ExitCode)"
           Get-ChildItem $smoke | Format-Table Name, Length -AutoSize | Out-String | Write-Host
 
@@ -113,7 +115,7 @@ jobs:
           if ($module -eq [IntPtr]::Zero) { Write-Host '::error::could not load Reduct.exe as a data file'; exit 1 }
           $errors = @()
           # RT_GROUP_ICON 14, RT_DIALOG 5, RT_VERSION 16, RT_MANIFEST 24
-          foreach ($r in @(@{ Type = 14; Name = 1; What = 'icon IDI_APP' }, @{ Type = 5; Name = 101; What = 'dialog IDD_SETTINGS' },
+          foreach ($r in @(@{ Type = 14; Name = 1; What = 'icon IDI_APP' }, @{ Type = 5; Name = 101; What = 'dialog IDD_SETTINGS' }, @{ Type = 5; Name = 102; What = 'dialog IDD_PROGRESS' },
                           @{ Type = 16; Name = 1; What = 'VS_VERSION_INFO' }, @{ Type = 24; Name = 1; What = 'manifest 1' })) {
             $bytes = [Res]::Get($module, $r.Type, $r.Name)
             if ($bytes) { Write-Host "$($r.What): $($bytes.Length) bytes" } else { $errors += "Reduct.exe has no $($r.What)" }

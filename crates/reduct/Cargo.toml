@@ -21,19 +21,13 @@ embed-resource.workspace = true
 [dependencies.windows]
 workspace = true
 features = [
-    # XmlDocument for the toast XML.
-    "Data_Xml_Dom",
     "Foundation",
     "Storage",
     # ApplicationData::LocalFolder is gated on this feature.
     "Storage_Search",
-    # ToastNotificationManager and ToastNotification.
-    "UI_Notifications",
-    # The settings dialog (ui.rs).
+    # The settings dialog (ui.rs) and the progress window (progress.rs).
     "Win32_Foundation",
     "Win32_System_Com",
-    # OutputDebugStringW for toast failures.
-    "Win32_System_Diagnostics_Debug",
     "Win32_System_LibraryLoader",
     "Win32_UI_Controls",
     "Win32_UI_Shell",

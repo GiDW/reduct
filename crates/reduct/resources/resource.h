@@ -1,9 +1,10 @@
-// Resource IDs for reduct.rc. Mirrored as Rust constants in src/ui.rs:
-// keep the two in step.
+// Resource IDs for reduct.rc. Mirrored as Rust constants in src/ui.rs and
+// src/progress.rs: keep them in step.
 
 #define IDI_APP                 1
 
 #define IDD_SETTINGS            101
+#define IDD_PROGRESS            102
 
 #define IDC_HINT                1001
 #define IDC_QUALITY             1002
@@ -16,6 +17,12 @@
 #define IDC_HEIC_STATUS         1010
 #define IDC_HEIC_STORE          1011
 #define IDC_LICENCES            1012
+
+#define IDC_PROGRESS_STATUS     1101
+#define IDC_PROGRESS_BAR        1102
+#define IDC_PROGRESS_DETAIL     1103
+#define IDC_SHOW_LOG            1104
+#define IDC_GET_HEVC            1105
 
 #ifndef IDC_STATIC
 #define IDC_STATIC              -1

@@ -24,7 +24,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_SETICON,
 };
 
-use crate::notify::HEVC_STORE_URI;
 use crate::paths;
 
 // Resource IDs: keep in step with resources/resource.h.
@@ -53,6 +52,8 @@ const BACKGROUND: [&str; 2] = ["White", "Black"];
 
 const HEIC_INSTALLED: &str = "HEIC support: installed";
 const HEIC_MISSING: &str = "HEIC support: missing. HEIC photos need Microsoft's HEVC Video Extensions.";
+/// The Store page of Microsoft's HEVC Video Extensions.
+pub(crate) const HEVC_STORE_URI: &str = "ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7";
 const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.txt";
 /// A copy for when the file isn't next to the exe (an unpackaged build).
 const NOTICES_TEXT: &str = include_str!("../../../THIRD-PARTY-NOTICES.txt");
@@ -178,7 +179,7 @@ fn init_dialog(hwnd: HWND) {
 }
 
 /// Title-bar and Alt+Tab icons at the sizes the current DPI needs.
-fn set_icons(hwnd: HWND) {
+pub(crate) fn set_icons(hwnd: HWND) {
     for (which, metric) in [(ICON_SMALL, LIM_SMALL), (ICON_BIG, LIM_LARGE)] {
         // SAFETY: IDI_APP is an icon resource of this module. The icon stays
         // alive for the process's lifetime, like the dialog.
@@ -234,7 +235,7 @@ fn open_licences(hwnd: HWND) {
 }
 
 /// Opens a file or URI (NUL-terminated UTF-16) with its default handler.
-fn open(hwnd: HWND, target: &[u16]) {
+pub(crate) fn open(hwnd: HWND, target: &[u16]) {
     // SAFETY: `target` is NUL-terminated and outlives the call.
     let result = unsafe {
         ShellExecuteW(Some(hwnd), w!("open"), PCWSTR(target.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL)
@@ -276,22 +277,22 @@ fn check_state(checked: bool) -> windows::Win32::UI::Controls::DLG_BUTTON_CHECK_
     }
 }
 
-fn module() -> Option<HINSTANCE> {
+pub(crate) fn module() -> Option<HINSTANCE> {
     // SAFETY: a NULL name returns the exe's own module handle.
     unsafe { GetModuleHandleW(None) }.ok().map(HINSTANCE::from)
 }
 
 /// `MAKEINTRESOURCEW`.
-fn make_int_resource(id: u16) -> PCWSTR {
+pub(crate) fn make_int_resource(id: u16) -> PCWSTR {
     PCWSTR(id as usize as *const u16)
 }
 
 /// NUL-terminated UTF-16.
-fn wide(s: &str) -> Vec<u16> {
+pub(crate) fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
 }
 
-fn wide_os(s: &OsStr) -> Vec<u16> {
+pub(crate) fn wide_os(s: &OsStr) -> Vec<u16> {
     s.encode_wide().chain(Some(0)).collect()
 }
 

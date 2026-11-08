@@ -1,8 +1,8 @@
 #![windows_subsystem = "windows"]
 
 mod batch;
-mod notify;
 mod paths;
+mod progress;
 mod summary;
 mod ui;
 
@@ -14,17 +14,18 @@ fn main() {
     std::process::exit(dispatch(&args));
 }
 
-/// No arguments opens the settings dialog; `--batch <listfile>` runs a batch.
-/// Anything else exits with `2`.
+/// No arguments opens the settings dialog; `--batch <listfile>` runs a batch
+/// with the progress window, and `--batch <listfile> --no-window` without it
+/// (the CI smoke test). Anything else exits with `2`.
 fn dispatch(args: &[OsString]) -> i32 {
-    match args {
-        [] => ui::run_settings(),
-        [flag, list] if flag == "--batch" => {
-            batch::install_quiet_panic_hook();
-            batch::run(Path::new(list))
-        }
-        _ => 2,
-    }
+    let (list, window) = match args {
+        [] => return ui::run_settings(),
+        [flag, list] if flag == "--batch" => (list, true),
+        [flag, list, no_window] if flag == "--batch" && no_window == "--no-window" => (list, false),
+        _ => return 2,
+    };
+    batch::install_quiet_panic_hook();
+    batch::run(Path::new(list), window)
 }
 
 #[cfg(test)]
@@ -40,5 +41,7 @@ mod tests {
         assert_eq!(dispatch(&args(&["--frobnicate"])), 2);
         assert_eq!(dispatch(&args(&["--batch"])), 2);
         assert_eq!(dispatch(&args(&["--batch", "a", "b"])), 2);
+        assert_eq!(dispatch(&args(&["--no-window", "--batch", "a"])), 2);
+        assert_eq!(dispatch(&args(&["--batch", "a", "--no-window", "b"])), 2);
     }
 }
