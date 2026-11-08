@@ -47,36 +47,37 @@ BEGIN
 END
 
 // The combo box entries and the HEIC status text are filled in by src/ui.rs.
-IDD_SETTINGS DIALOGEX 0, 0, 264, 214
+IDD_SETTINGS DIALOGEX 0, 0, 264, 242
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Reduct settings"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
     LTEXT           "To optimise images, select them in File Explorer, right-click and choose Optimise with Reduct.",
                     IDC_HINT, 7, 7, 250, 20
-    LTEXT           "Quality", IDC_STATIC, 7, 36, 108, 8
-    EDITTEXT        IDC_QUALITY, 120, 34, 40, 14, ES_NUMBER | ES_AUTOHSCROLL
+    LTEXT           "Quality", IDC_STATIC, 7, 36, 90, 8
+    EDITTEXT        IDC_QUALITY, 100, 34, 40, 14, ES_NUMBER | ES_AUTOHSCROLL
     CONTROL         "", IDC_QUALITY_SPIN, "msctls_updown32",
                     UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_AUTOBUDDY | UDS_NOTHOUSANDS,
-                    160, 34, 10, 14
-    LTEXT           "Save to", IDC_STATIC, 7, 54, 108, 8
-    COMBOBOX        IDC_SAVE_TO, 120, 52, 137, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "When the name is taken", IDC_STATIC, 7, 72, 108, 8
-    COMBOBOX        IDC_NAME_TAKEN, 120, 70, 137, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Limit size", IDC_STATIC, 7, 90, 108, 8
-    COMBOBOX        IDC_LIMIT_SIZE, 120, 88, 137, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Transparent areas", IDC_STATIC, 7, 108, 108, 8
-    COMBOBOX        IDC_BACKGROUND, 120, 106, 137, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    AUTOCHECKBOX    "Keep the original file date", IDC_KEEP_DATE, 7, 128, 250, 10
-    LTEXT           "", IDC_HEIC_STATUS, 7, 148, 250, 18
-    PUSHBUTTON      "Get from Microsoft Store", IDC_HEIC_STORE, 7, 168, 110, 14
-    PUSHBUTTON      "Licences", IDC_LICENCES, 7, 193, 60, 14
-    DEFPUSHBUTTON   "OK", IDOK, 150, 193, 50, 14
-    PUSHBUTTON      "Cancel", IDCANCEL, 207, 193, 50, 14
+                    140, 34, 10, 14
+    LTEXT           "Save to", IDC_STATIC, 7, 54, 90, 8
+    COMBOBOX        IDC_SAVE_TO, 100, 52, 157, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "When the name is taken", IDC_STATIC, 7, 72, 90, 8
+    COMBOBOX        IDC_NAME_TAKEN, 100, 70, 157, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Image size", IDC_STATIC, 7, 90, 90, 8
+    COMBOBOX        IDC_IMAGE_SIZE, 100, 88, 157, 90, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "", IDC_SIZE_HINT, 100, 104, 157, 26, SS_NOPREFIX
+    LTEXT           "Transparent areas", IDC_STATIC, 7, 136, 90, 8
+    COMBOBOX        IDC_BACKGROUND, 100, 134, 157, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "Keep the original file date", IDC_KEEP_DATE, 7, 156, 250, 10
+    LTEXT           "", IDC_HEIC_STATUS, 7, 176, 250, 18
+    PUSHBUTTON      "Get from Microsoft Store", IDC_HEIC_STORE, 7, 196, 110, 14
+    PUSHBUTTON      "Licences", IDC_LICENCES, 7, 221, 60, 14
+    DEFPUSHBUTTON   "OK", IDOK, 150, 221, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 207, 221, 50, 14
 END
 
-// The batch progress window (src/progress.rs): created hidden and shown once
-// a batch has run for half a second. The buttons below Cancel start hidden
+// The batch progress window (src/progress.rs): created hidden and shown
+// straight away for two or more files, after half a second for one. The buttons below Cancel start hidden
 // (src/progress.rs hides them) and appear only on a result with errors.
 IDD_PROGRESS DIALOGEX 0, 0, 260, 76
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU

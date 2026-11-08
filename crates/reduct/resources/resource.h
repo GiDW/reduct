@@ -11,12 +11,13 @@
 #define IDC_QUALITY_SPIN        1003
 #define IDC_SAVE_TO             1004
 #define IDC_NAME_TAKEN          1005
-#define IDC_LIMIT_SIZE          1006
+#define IDC_IMAGE_SIZE          1006
 #define IDC_BACKGROUND          1007
 #define IDC_KEEP_DATE           1008
 #define IDC_HEIC_STATUS         1010
 #define IDC_HEIC_STORE          1011
 #define IDC_LICENCES            1012
+#define IDC_SIZE_HINT           1013
 
 #define IDC_PROGRESS_STATUS     1101
 #define IDC_PROGRESS_BAR        1102

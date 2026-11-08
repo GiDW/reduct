@@ -33,12 +33,13 @@ const IDC_QUALITY: i32 = 1002;
 const IDC_QUALITY_SPIN: i32 = 1003;
 const IDC_SAVE_TO: i32 = 1004;
 const IDC_NAME_TAKEN: i32 = 1005;
-const IDC_LIMIT_SIZE: i32 = 1006;
+const IDC_IMAGE_SIZE: i32 = 1006;
 const IDC_BACKGROUND: i32 = 1007;
 const IDC_KEEP_DATE: i32 = 1008;
 const IDC_HEIC_STATUS: i32 = 1010;
 const IDC_HEIC_STORE: i32 = 1011;
 const IDC_LICENCES: i32 = 1012;
+const IDC_SIZE_HINT: i32 = 1013;
 
 const ID_OK: i32 = IDOK.0;
 const ID_CANCEL: i32 = IDCANCEL.0;
@@ -47,7 +48,23 @@ const ID_CANCEL: i32 = IDCANCEL.0;
 // `*_from_index` functions below map to and from.
 const SAVE_TO: [&str; 2] = ["Next to the original", "\"Optimised\" subfolder"];
 const NAME_TAKEN: [&str; 2] = ["Add _2, _3, \u{2026}", "Add (optimised)"];
-const LIMIT_SIZE: [&str; 3] = ["Off", "2048 px long edge", "3840 px long edge"];
+/// The `Image size` entries, their long edge (`None`: original size) and the
+/// line shown below the list for each.
+const IMAGE_SIZE: [&str; 5] = [
+    "Original size",
+    "Large: for big screens and TVs (3840 px)",
+    "Medium: for sharing online (2048 px)",
+    "Small: for email and chat apps (1280 px)",
+    "Very small: for attachments and forms (800 px)",
+];
+const IMAGE_SIZE_EDGES: [Option<u32>; 5] = [None, Some(3840), Some(2048), Some(1280), Some(800)];
+const IMAGE_SIZE_HINTS: [&str; 5] = [
+    "Images keep their size. Only the compression makes the files smaller.",
+    "Sharp on big screens and TVs, with somewhat smaller files. Smaller images stay as they are.",
+    "Fine on any screen, with much smaller files. Smaller images stay as they are.",
+    "Good for email and chat apps, with small files. Smaller images stay as they are.",
+    "For attachments and upload forms with a size limit. Smaller images stay as they are.",
+];
 const BACKGROUND: [&str; 2] = ["White", "Black"];
 
 const HEIC_INSTALLED: &str = "HEIC support: installed";
@@ -117,12 +134,13 @@ unsafe extern "system" fn dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, _lpa
                 // Enter and Esc arrive as IDOK/IDCANCEL too; take any code.
                 (ID_OK, _) => on_ok(hwnd),
                 (ID_CANCEL, _) => end(hwnd, ID_CANCEL),
-                (IDC_LIMIT_SIZE, CBN_SELCHANGE) => {
+                (IDC_IMAGE_SIZE, CBN_SELCHANGE) => {
                     STATE.with(|s| {
                         if let Some(state) = s.borrow_mut().as_mut() {
                             state.limit_changed = true;
                         }
                     });
+                    update_size_hint(hwnd);
                 }
                 (IDC_HEIC_STORE, BN_CLICKED) => open(hwnd, &wide(HEVC_STORE_URI)),
                 (IDC_LICENCES, BN_CLICKED) => open_licences(hwnd),
@@ -151,7 +169,7 @@ fn init_dialog(hwnd: HWND) {
         for (id, entries, selected) in [
             (IDC_SAVE_TO, &SAVE_TO[..], output_index(settings.output)),
             (IDC_NAME_TAKEN, &NAME_TAKEN[..], suffix_index(settings.suffix)),
-            (IDC_LIMIT_SIZE, &LIMIT_SIZE[..], limit_index(settings.max_long_edge)),
+            (IDC_IMAGE_SIZE, &IMAGE_SIZE[..], limit_index(settings.max_long_edge)),
             (IDC_BACKGROUND, &BACKGROUND[..], background_index(settings.background)),
         ] {
             for entry in entries {
@@ -162,6 +180,7 @@ fn init_dialog(hwnd: HWND) {
         }
         let _ = CheckDlgButton(hwnd, IDC_KEEP_DATE, check_state(settings.keep_file_date));
     }
+    update_size_hint(hwnd);
 
     // heic_supported() initialises COM as MTA on the calling thread, so it
     // runs on a short-lived thread of its own and leaves this STA alone.
@@ -176,6 +195,14 @@ fn init_dialog(hwnd: HWND) {
             }
         }
     }
+}
+
+/// Shows the line for the selected `Image size` entry below the list.
+fn update_size_hint(hwnd: HWND) {
+    let hint = selection(hwnd, IDC_IMAGE_SIZE).and_then(|i| IMAGE_SIZE_HINTS.get(i)).copied().unwrap_or("");
+    let hint = wide(hint);
+    // SAFETY: own child control; `hint` outlives the call.
+    let _ = unsafe { SetDlgItemTextW(hwnd, IDC_SIZE_HINT, PCWSTR(hint.as_ptr())) };
 }
 
 /// Title-bar and Alt+Tab icons at the sizes the current DPI needs.
@@ -203,7 +230,7 @@ fn on_ok(hwnd: HWND) {
         quality: translated.as_bool().then_some(quality),
         save_to: selection(hwnd, IDC_SAVE_TO),
         name_taken: selection(hwnd, IDC_NAME_TAKEN),
-        limit: selection(hwnd, IDC_LIMIT_SIZE),
+        limit: selection(hwnd, IDC_IMAGE_SIZE),
         limit_changed,
         background: selection(hwnd, IDC_BACKGROUND),
         keep_date: is_checked(hwnd, IDC_KEEP_DATE),
@@ -305,8 +332,9 @@ struct Form {
     save_to: Option<usize>,
     name_taken: Option<usize>,
     limit: Option<usize>,
-    /// Whether the user picked a `Limit size` entry. A stored limit other
-    /// than 2048 or 3840 shows as `Off` and is kept unless this is set.
+    /// Whether the user picked an `Image size` entry. A stored limit that
+    /// isn't one of the entries shows as `Original size` and is kept unless
+    /// this is set.
     limit_changed: bool,
     background: Option<usize>,
     keep_date: bool,
@@ -366,22 +394,13 @@ fn suffix_from_index(index: usize) -> Option<SuffixStyle> {
     }
 }
 
-/// Any limit other than 2048 or 3840 shows as `Off`.
+/// A limit that isn't one of the entries shows as `Original size`.
 fn limit_index(limit: Option<u32>) -> usize {
-    match limit {
-        Some(2048) => 1,
-        Some(3840) => 2,
-        _ => 0,
-    }
+    IMAGE_SIZE_EDGES.iter().position(|edge| *edge == limit).unwrap_or(0)
 }
 
 fn limit_from_index(index: usize) -> Option<Option<u32>> {
-    match index {
-        0 => Some(None),
-        1 => Some(Some(2048)),
-        2 => Some(Some(3840)),
-        _ => None,
-    }
+    IMAGE_SIZE_EDGES.get(index).copied()
 }
 
 fn background_index(background: Background) -> usize {
@@ -426,14 +445,17 @@ mod tests {
             assert_eq!(suffix_from_index(suffix_index(x)), Some(x));
             assert!(suffix_index(x) < NAME_TAKEN.len());
         }
-        for l in [None, Some(2048), Some(3840)] {
+        for l in IMAGE_SIZE_EDGES {
             assert_eq!(limit_from_index(limit_index(l)), Some(l));
         }
+        // Settings saved before the new entries map onto the same sizes.
+        assert_eq!(IMAGE_SIZE[limit_index(Some(2048))], "Medium: for sharing online (2048 px)");
+        assert_eq!(IMAGE_SIZE[limit_index(Some(3840))], "Large: for big screens and TVs (3840 px)");
         for b in [Background::White, Background::Black] {
             assert_eq!(background_from_index(background_index(b)), Some(b));
             assert!(background_index(b) < BACKGROUND.len());
         }
-        assert_eq!(limit_from_index(LIMIT_SIZE.len()), None);
+        assert_eq!(limit_from_index(IMAGE_SIZE.len()), None);
         assert_eq!(output_from_index(SAVE_TO.len()), None);
     }
 
@@ -459,8 +481,8 @@ mod tests {
         assert_eq!(apply_form(&s, &form).max_long_edge, Some(1600));
         form.limit_changed = true;
         assert_eq!(apply_form(&s, &form).max_long_edge, None);
-        form.limit = Some(1);
-        assert_eq!(apply_form(&s, &form).max_long_edge, Some(2048));
+        form.limit = Some(3);
+        assert_eq!(apply_form(&s, &form).max_long_edge, Some(1280));
     }
 
     #[test]
@@ -482,7 +504,7 @@ mod tests {
             quality: Some(60),
             save_to: Some(1),
             name_taken: Some(1),
-            limit: Some(2),
+            limit: Some(1),
             limit_changed: true,
             background: Some(1),
             keep_date: true,

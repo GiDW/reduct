@@ -32,7 +32,7 @@ Start Reduct from the Start menu to open its settings.
 - **Quality:** JPEG quality from 1 to 100 (default 75).
 - **Save to:** next to the original (default), or in an `Optimised` subfolder.
 - **When the name is taken:** add `_2`, `_3`, … (default), or add ` (optimised)`.
-- **Limit size:** off (default), or scale down to a 2048 or 3840 px long edge.
+- **Image size:** original size (default), or scaled down so the longest side is at most Large: 3840 px (big screens and TVs), Medium: 2048 px (sharing online), Small: 1280 px (email and chat apps) or Very small: 800 px (attachments and forms). Images that are already smaller are never enlarged. A line below the list explains each choice.
 - **Transparent areas:** flattened onto white (default) or black.
 - **Keep the original file date:** copies the original's modified time to the output (default off).
 
