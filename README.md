@@ -20,9 +20,9 @@ When an optimised JPEG would not be smaller than the source JPEG, Reduct writes 
 
 ## Progress
 
-A batch that takes longer than half a second opens a small progress window with a count, a progress bar, the file being worked on and a **Cancel** button. Cancel finishes the files already being converted and skips the rest. Images already optimised stay.
+A batch of two or more files, or a single file that takes longer than half a second, opens a small progress window with a count, a progress bar, the file being worked on and a **Cancel** button. Cancel finishes the files already being converted and skips the rest. Images already optimised stay.
 
-- **No errors:** the window shows the result for two seconds and closes itself. A batch that finishes within half a second shows nothing.
+- **No errors:** the window shows the result for one second and closes itself. A single file that finishes within half a second shows nothing.
 - **Errors:** the window stays open with the result, **Show details** (the failures log) and, when HEIC support is missing, **Get HEVC extension**.
 
 ## Settings

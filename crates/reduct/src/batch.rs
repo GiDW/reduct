@@ -65,6 +65,10 @@ impl Progress {
         self.cancelled.load(Ordering::Relaxed)
     }
 
+    pub(crate) fn set_total(&self, total: usize) {
+        self.total.store(total, Ordering::Relaxed);
+    }
+
     fn start(&self, source: &Path) {
         let name = source.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         if let Ok(mut current) = self.current.lock() {
@@ -158,7 +162,7 @@ fn run_in(list: &Path, data_dir: &Path, progress: &Progress) -> Finished {
     let sources: Vec<PathBuf> = sources.into_iter().filter(|p| is_supported(p)).collect();
     let planned = plan_outputs(&sources, settings.suffix, settings.output, &|p: &Path| p.exists());
 
-    progress.total.store(planned.len(), Ordering::Relaxed);
+    progress.set_total(planned.len());
     let outcomes = convert_all(&planned, &settings, progress);
     let mut summary = summarize(&outcomes);
     summary.cancelled = planned.len().saturating_sub(outcomes.len()) as u32;

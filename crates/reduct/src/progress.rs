@@ -2,10 +2,12 @@
 //! Explorer's copy dialog, with a count, a progress bar, the current file and
 //! a Cancel button.
 //!
-//! - It appears only once a batch has run for [`SHOW_AFTER`], so a quick
-//!   batch shows nothing.
+//! - A batch of [`ALWAYS_SHOW_FROM`] files or more always shows it: some ARM
+//!   PCs are slow enough that even a few files take a while.
+//! - A single file shows it only once it has run for [`SHOW_AFTER`], so a
+//!   quick one shows nothing.
 //! - Without errors it shows the result for [`RESULT_SHOWN_FOR`] and closes
-//!   itself. A quick batch without errors never shows it at all.
+//!   itself.
 //! - With errors it stays open until closed, with buttons for the failures
 //!   log and, when HEIC support is missing, the HEVC extension's Store page.
 //!
@@ -50,10 +52,12 @@ const IDC_GET_HEVC: i32 = 1105;
 const ID_OK: i32 = IDOK.0;
 const ID_CANCEL: i32 = IDCANCEL.0;
 
-/// A batch that is still running after this long shows the window.
+/// A batch of at least this many files shows the window straight away.
+const ALWAYS_SHOW_FROM: usize = 2;
+/// A smaller batch still running after this long shows the window.
 const SHOW_AFTER: Duration = Duration::from_millis(500);
 /// How long a result without errors stays on screen.
-const RESULT_SHOWN_FOR: Duration = Duration::from_secs(2);
+const RESULT_SHOWN_FOR: Duration = Duration::from_secs(1);
 const TIMER_ID: usize = 1;
 const TIMER_MS: u32 = 100;
 
@@ -126,23 +130,22 @@ impl Window {
                 .unwrap_or_else(Finished::crashed);
             let view = result_view(&finished);
             self.finished = Some(finished);
-            return if view.errors {
-                let mut actions = vec![Action::Result(view)];
-                if !self.shown {
-                    self.shown = true;
-                    actions.push(Action::Show);
-                }
-                actions
-            } else if self.shown {
+            if !view.errors && !self.shown && !self.always_show() {
+                return vec![Action::Close];
+            }
+            if !view.errors {
                 self.close_at = Some(now + RESULT_SHOWN_FOR);
-                vec![Action::Result(view)]
-            } else {
-                vec![Action::Close]
-            };
+            }
+            let mut actions = vec![Action::Result(view)];
+            if !self.shown {
+                self.shown = true;
+                actions.push(Action::Show);
+            }
+            return actions;
         }
 
         let mut actions = Vec::new();
-        let show = !self.shown && now.duration_since(self.started) >= SHOW_AFTER;
+        let show = !self.shown && (self.always_show() || now.duration_since(self.started) >= SHOW_AFTER);
         if (self.shown || show) && !self.cancelling {
             let state = (self.progress.done(), self.progress.total(), self.progress.current());
             if self.last.as_ref() != Some(&state) {
@@ -156,6 +159,10 @@ impl Window {
             actions.push(Action::Show);
         }
         actions
+    }
+
+    fn always_show(&self) -> bool {
+        self.progress.total() >= ALWAYS_SHOW_FROM
     }
 
     /// Cancel, Esc or the close box: cancels a running batch, closes a
@@ -439,6 +446,37 @@ mod tests {
     }
 
     #[test]
+    fn two_files_show_straight_away_even_when_quick() {
+        let start = Instant::now();
+        let progress = Arc::new(Progress::default());
+        progress.set_total(2);
+
+        // Still running at the first tick: shown at once.
+        let (release, wait) = std::sync::mpsc::channel::<()>();
+        let worker = std::thread::spawn(move || {
+            let _ = wait.recv();
+            ok(2)
+        });
+        let mut w = Window::new(Arc::clone(&progress), worker, start);
+        assert_eq!(
+            w.tick(start + Duration::from_millis(100)),
+            vec![Action::Running { done: 0, total: 2, file: String::new() }, Action::Show]
+        );
+        release.send(()).unwrap();
+        while !w.worker.as_ref().unwrap().is_finished() {
+            std::thread::yield_now();
+        }
+        drop(w);
+
+        // Already done at the first tick: the result still shows, briefly.
+        let mut w = Window::new(progress, finished_worker(ok(2)), start);
+        let at = start + Duration::from_millis(100);
+        let actions = w.tick(at);
+        assert!(matches!(&actions[..], [Action::Result(view), Action::Show] if !view.errors), "{actions:?}");
+        assert_eq!(w.tick(at + RESULT_SHOWN_FOR), vec![Action::Close]);
+    }
+
+    #[test]
     fn quick_batch_with_errors_shows_the_result_and_stays() {
         let start = Instant::now();
         let mut w = Window::new(Arc::default(), finished_worker(failed()), start);
@@ -485,7 +523,7 @@ mod tests {
         let done_at = start + Duration::from_secs(3);
         let actions = w.tick(done_at);
         assert!(matches!(&actions[..], [Action::Result(view)] if !view.errors), "{actions:?}");
-        assert_eq!(w.tick(done_at + Duration::from_secs(1)), Vec::new());
+        assert_eq!(w.tick(done_at + Duration::from_millis(500)), Vec::new());
         assert_eq!(w.tick(done_at + RESULT_SHOWN_FOR), vec![Action::Close]);
     }
 
