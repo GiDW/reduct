@@ -1,0 +1,34 @@
+# Weekly version bumps as pull requests. CI's build job checks each one.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      # windows and windows-core must stay on the same version: ReductShell.dll
+      # mixes their types, so bumping one alone fails to compile.
+      windows:
+        patterns: [windows, windows-core]
+      # Everything else in one PR.
+      crates:
+        patterns: ["*"]
+        exclude-patterns: [windows, windows-core]
+    ignore:
+      # windows-core 0.100 was published without a matching windows release
+      # (windows is at 0.62). Remove this once windows moves to 0.100 too,
+      # otherwise the windows group PR would bump only windows.
+      - dependency-name: windows-core
+        versions: [">=0.100"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]
