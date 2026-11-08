@@ -19,7 +19,7 @@ jobs:
           - { runner: windows-11-arm,  target: aarch64-pc-windows-msvc, arch: arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: "${{ matrix.target }}", components: rustfmt }
       - uses: ilammy/setup-nasm@v1
@@ -175,7 +175,7 @@ jobs:
           }
           if ($bad) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host 'C runtime is static'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-${{ matrix.arch }}
           if-no-files-found: error
@@ -194,7 +194,7 @@ jobs:
       - name: Resolve Cargo.lock
         if: always() && matrix.arch == 'x64'
         run: cargo update --workspace
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && matrix.arch == 'x64'
         with: { name: cargo-lock, path: Cargo.lock }
 
@@ -204,10 +204,10 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: { name: bin-x64, path: bin/x64 }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: bin-arm64, path: bin/arm64 }
       # package/priconfig.xml is `makepri createconfig /cf priconfig.xml /dq en-US
       # /pv 10.0.0` without its <packaging> element: no per-scale resource PRIs,
@@ -328,12 +328,12 @@ jobs:
           $pkg | Format-List Name, Version, Architecture, PublisherId, InstallLocation | Out-String | Write-Host
           Remove-AppxPackage $pkg.PackageFullName
           Write-Host 'Install test passed'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: reduct-sideload
           if-no-files-found: error
           path: out/sideload/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: reduct-store
           if-no-files-found: error
@@ -348,7 +348,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the tag matches the workspace version
         id: version
         shell: bash
@@ -362,9 +362,9 @@ jobs:
             echo "::error::tag $TAG does not match the workspace version $version (expected v$version)"; exit 1
           fi
           echo "package=$version.0" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: reduct-store, path: store }
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: store/Reduct_${{ steps.version.outputs.package }}.msixupload
           fail_on_unmatched_files: true
