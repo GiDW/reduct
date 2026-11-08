@@ -1,0 +1,4 @@
+# Matches the hand-formatted style the code started with: lines up to 120
+# characters, and rustfmt's width heuristics scaled to that line width.
+max_width = 120
+use_small_heuristics = "Max"

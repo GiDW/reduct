@@ -45,13 +45,8 @@ pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
         let target = planned.dir.join(candidate(&planned.stem, planned.style, k));
         let target_wide = wide(&target);
         // SAFETY: both buffers are NUL-terminated UTF-16 and outlive the call.
-        let moved = unsafe {
-            MoveFileExW(
-                PCWSTR(tmp_wide.as_ptr()),
-                PCWSTR(target_wide.as_ptr()),
-                MOVEFILE_WRITE_THROUGH,
-            )
-        };
+        let moved =
+            unsafe { MoveFileExW(PCWSTR(tmp_wide.as_ptr()), PCWSTR(target_wide.as_ptr()), MOVEFILE_WRITE_THROUGH) };
         match moved {
             Ok(()) => return Ok(target),
             Err(err) => match WIN32_ERROR::from_error(&err) {

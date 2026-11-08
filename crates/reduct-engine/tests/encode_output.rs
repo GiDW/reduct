@@ -65,13 +65,9 @@ fn commit_takes_next_suffix_when_target_appears() {
     let dir = tmp.path();
     let source = dir.join("a.png");
 
-    let planned = plan_outputs(
-        &[source],
-        SuffixStyle::Underscore,
-        OutputLocation::NextToOriginal,
-        &|p: &Path| p.exists(),
-    )
-    .remove(0);
+    let planned =
+        plan_outputs(&[source], SuffixStyle::Underscore, OutputLocation::NextToOriginal, &|p: &Path| p.exists())
+            .remove(0);
     assert_eq!(planned.target(), dir.join("a.jpg"));
 
     // Someone else creates a.jpg between planning and committing.

@@ -13,13 +13,10 @@ use windows::Win32::System::LibraryLoader::{
     GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
 };
 use windows::Win32::System::SystemInformation::GetTickCount64;
-use windows::Win32::System::Threading::{
-    CreateProcessW, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
-};
+use windows::Win32::System::Threading::{CreateProcessW, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW};
 use windows::Win32::UI::Shell::{
-    FOLDERID_LocalAppData, IEnumExplorerCommand, IExplorerCommand, IExplorerCommand_Impl,
-    IShellItem, IShellItemArray, SHGetKnownFolderPath, SHStrDupW, ECF_DEFAULT, ECS_ENABLED,
-    ECS_HIDDEN, KF_FLAG_DEFAULT, SIGDN_FILESYSPATH,
+    FOLDERID_LocalAppData, IEnumExplorerCommand, IExplorerCommand, IExplorerCommand_Impl, IShellItem, IShellItemArray,
+    SHGetKnownFolderPath, SHStrDupW, ECF_DEFAULT, ECS_ENABLED, ECS_HIDDEN, KF_FLAG_DEFAULT, SIGDN_FILESYSPATH,
 };
 use windows_core::{implement, Error, Ref, Result, BOOL, GUID, HRESULT, PCWSTR, PWSTR};
 
@@ -141,13 +138,11 @@ fn launch(paths: &[PathBuf]) -> Result<()> {
     ));
     listfile::write_list(&list, paths).map_err(io_error)?;
 
-    let result = local_app_data()
-        .and_then(|dir| start(&dir.join(ALIAS_PATH), &list))
-        .or_else(|_| {
-            let dll = module_path()?;
-            let dir = dll.parent().ok_or_else(|| Error::from(E_FAIL))?;
-            start(&dir.join(PACKAGED_EXE), &list)
-        });
+    let result = local_app_data().and_then(|dir| start(&dir.join(ALIAS_PATH), &list)).or_else(|_| {
+        let dll = module_path()?;
+        let dir = dll.parent().ok_or_else(|| Error::from(E_FAIL))?;
+        start(&dir.join(PACKAGED_EXE), &list)
+    });
     if result.is_err() {
         // The exe deletes the list once it has read it; nobody will now.
         let _ = std::fs::remove_file(&list);
@@ -158,10 +153,7 @@ fn launch(paths: &[PathBuf]) -> Result<()> {
 fn start(exe: &Path, list: &Path) -> Result<()> {
     let application = wide(exe.as_os_str());
     let mut command_line = wide(&command_line(exe.as_os_str(), list.as_os_str()));
-    let startup = STARTUPINFOW {
-        cb: size_of::<STARTUPINFOW>() as u32,
-        ..Default::default()
-    };
+    let startup = STARTUPINFOW { cb: size_of::<STARTUPINFOW>() as u32, ..Default::default() };
     let mut process = PROCESS_INFORMATION::default();
     // SAFETY: both strings are NUL-terminated and outlive the call; the
     // command line buffer is mutable as CreateProcessW requires.

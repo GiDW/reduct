@@ -85,10 +85,7 @@ pub fn plan_outputs(
         .iter()
         .map(|source| {
             let dir = target_dir(source, loc);
-            let stem = source
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default();
+            let stem = source.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
             let mut planned = Planned { source: source.clone(), dir, stem, k: 0, style };
             loop {
                 let target = planned.target();
@@ -147,7 +144,12 @@ mod tests {
         let o = plan_outputs(&[src.clone()], SuffixStyle::Optimised, OutputLocation::NextToOriginal, &exists);
         assert_eq!(targets(&o), vec![PathBuf::from(r"C:\p\photo (optimised).jpg")]);
         // Even if `exists` misses it, the source is never its own target.
-        let n = plan_outputs(&[PathBuf::from(r"C:\p\PHOTO.JPG")], SuffixStyle::Underscore, OutputLocation::NextToOriginal, &none);
+        let n = plan_outputs(
+            &[PathBuf::from(r"C:\p\PHOTO.JPG")],
+            SuffixStyle::Underscore,
+            OutputLocation::NextToOriginal,
+            &none,
+        );
         assert_eq!(targets(&n), vec![PathBuf::from(r"C:\p\PHOTO_2.jpg")]);
     }
 
@@ -159,10 +161,7 @@ mod tests {
             OutputLocation::NextToOriginal,
             &none,
         );
-        assert_eq!(
-            targets(&p),
-            vec![PathBuf::from(r"C:\p\IMG_1.jpg"), PathBuf::from(r"C:\p\IMG_1_2.jpg")]
-        );
+        assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\IMG_1.jpg"), PathBuf::from(r"C:\p\IMG_1_2.jpg")]);
     }
 
     #[test]
@@ -171,7 +170,12 @@ mod tests {
             let k = key(p);
             k == key(Path::new(r"C:\p\a.jpg")) || k == key(Path::new(r"C:\p\a_2.jpg"))
         };
-        let p = plan_outputs(&[PathBuf::from(r"C:\p\a.png")], SuffixStyle::Underscore, OutputLocation::NextToOriginal, &exists);
+        let p = plan_outputs(
+            &[PathBuf::from(r"C:\p\a.png")],
+            SuffixStyle::Underscore,
+            OutputLocation::NextToOriginal,
+            &exists,
+        );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\a_3.jpg")]);
         assert_eq!(p[0].k, 2);
     }

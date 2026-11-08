@@ -10,9 +10,7 @@ use std::path::{Path, PathBuf};
 pub fn write_list(path: &Path, items: &[PathBuf]) -> io::Result<()> {
     let mut text = String::new();
     for item in items {
-        let s = item.to_str().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "path is not valid Unicode")
-        })?;
+        let s = item.to_str().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "path is not valid Unicode"))?;
         text.push_str(s);
         text.push('\n');
     }
@@ -59,9 +57,6 @@ mod tests {
         fs::write(&file, "C:\\a.jpg\r\n\r\n\nC:\\b c\\d.png\r\n\n").unwrap();
         let back = read_list(&file).unwrap();
         let _ = fs::remove_file(&file);
-        assert_eq!(
-            back,
-            vec![PathBuf::from(r"C:\a.jpg"), PathBuf::from(r"C:\b c\d.png")]
-        );
+        assert_eq!(back, vec![PathBuf::from(r"C:\a.jpg"), PathBuf::from(r"C:\b c\d.png")]);
     }
 }

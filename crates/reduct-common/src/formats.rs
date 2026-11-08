@@ -3,14 +3,11 @@
 use std::path::{Path, PathBuf};
 
 /// Input extensions Reduct accepts, lowercase, without the dot.
-pub const SUPPORTED_EXTENSIONS: &[&str] =
-    &["jpg", "jpeg", "jfif", "png", "webp", "heic", "heif", "avif"];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "jfif", "png", "webp", "heic", "heif", "avif"];
 
 /// Lowercased extension of `path`, if it has one.
 fn ext_lower(path: &Path) -> Option<String> {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
+    path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())
 }
 
 fn ext_in(path: &Path, set: &[&str]) -> bool {

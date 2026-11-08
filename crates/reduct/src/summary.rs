@@ -5,10 +5,17 @@ use std::path::PathBuf;
 /// What happened to one file of a batch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
-    Converted { source_bytes: u64, output_bytes: u64 },
+    Converted {
+        source_bytes: u64,
+        output_bytes: u64,
+    },
     /// The source is a JPEG and the result was not smaller; nothing was written.
     SkippedLarger,
-    Failed { source: PathBuf, reason: String, codec_missing: bool },
+    Failed {
+        source: PathBuf,
+        reason: String,
+        codec_missing: bool,
+    },
 }
 
 /// Counts over a whole batch.
@@ -110,10 +117,7 @@ mod tests {
     #[test]
     fn result_text_cases() {
         // Something converted, with a saving.
-        assert_eq!(
-            result_text(&summary(42, 0, 0, 0, 61_000_000)),
-            text("42 images optimised, saved 61 MB", "")
-        );
+        assert_eq!(result_text(&summary(42, 0, 0, 0, 61_000_000)), text("42 images optimised, saved 61 MB", ""));
         assert_eq!(
             result_text(&summary(42, 2, 3, 0, 61_000_000)),
             text("42 images optimised, saved 61 MB", "2 skipped (already smaller), 3 failed")
@@ -127,16 +131,10 @@ mod tests {
         // Nothing converted.
         assert_eq!(
             result_text(&summary(0, 2, 3, 3, 0)),
-            text(
-                "No images optimised",
-                "2 skipped (already smaller), 3 failed, HEIC needs Microsoft's HEVC extension"
-            )
+            text("No images optimised", "2 skipped (already smaller), 3 failed, HEIC needs Microsoft's HEVC extension")
         );
         // Singular.
-        assert_eq!(
-            result_text(&summary(1, 0, 0, 0, 4_200_000)),
-            text("1 image optimised, saved 4.2 MB", "")
-        );
+        assert_eq!(result_text(&summary(1, 0, 0, 0, 4_200_000)), text("1 image optimised, saved 4.2 MB", ""));
         assert_eq!(result_text(&summary(1, 0, 1, 0, 0)), text("1 image optimised", "1 failed"));
     }
 

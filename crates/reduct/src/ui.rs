@@ -104,9 +104,8 @@ pub fn run_settings() -> i32 {
     STATE.with(|s| *s.borrow_mut() = Some(State { original: paths::load_settings(), limit_changed: false }));
     // SAFETY: the template is in this module's resources and dialog_proc has
     // the DLGPROC signature.
-    let result = unsafe {
-        DialogBoxParamW(module(), make_int_resource(IDD_SETTINGS), None, Some(dialog_proc), LPARAM(0))
-    };
+    let result =
+        unsafe { DialogBoxParamW(module(), make_int_resource(IDD_SETTINGS), None, Some(dialog_proc), LPARAM(0)) };
     STATE.with(|s| s.borrow_mut().take());
 
     if com.is_ok() {

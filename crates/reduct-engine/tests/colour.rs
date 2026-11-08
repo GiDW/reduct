@@ -6,14 +6,11 @@ use std::path::PathBuf;
 use reduct_engine::{decode, init_com_mta, RgbImage};
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/colour")
-        .join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/colour").join(name)
 }
 
 fn load(name: &str, max_long_edge: Option<u32>) -> RgbImage {
-    decode(&fixture(name), max_long_edge, [255, 255, 255])
-        .unwrap_or_else(|e| panic!("decoding {name} failed: {e}"))
+    decode(&fixture(name), max_long_edge, [255, 255, 255]).unwrap_or_else(|e| panic!("decoding {name} failed: {e}"))
 }
 
 fn mean_rgb(img: &RgbImage) -> [f64; 3] {

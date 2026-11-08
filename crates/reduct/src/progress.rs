@@ -28,14 +28,14 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE};
 use windows::Win32::UI::Controls::{
-    InitCommonControlsEx, ICC_PROGRESS_CLASS, ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, PBM_SETPOS,
-    PBM_SETRANGE32, PBM_SETSTATE, PBST_ERROR,
+    InitCommonControlsEx, ICC_PROGRESS_CLASS, ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, PBM_SETPOS, PBM_SETRANGE32,
+    PBM_SETSTATE, PBST_ERROR,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateDialogParamW, DestroyWindow, DispatchMessageW, GetDlgItem, GetMessageW, IsDialogMessageW, KillTimer,
-    PostQuitMessage, SendDlgItemMessageW, SendMessageW, SetDlgItemTextW, SetForegroundWindow, SetTimer,
-    SetWindowTextW, ShowWindow, TranslateMessage, IDCANCEL, IDOK, MSG, SW_HIDE, SW_SHOW, SW_SHOWNORMAL, WM_CLOSE,
-    WM_COMMAND, WM_DESTROY, WM_INITDIALOG, WM_NEXTDLGCTL, WM_TIMER,
+    PostQuitMessage, SendDlgItemMessageW, SendMessageW, SetDlgItemTextW, SetForegroundWindow, SetTimer, SetWindowTextW,
+    ShowWindow, TranslateMessage, IDCANCEL, IDOK, MSG, SW_HIDE, SW_SHOW, SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND,
+    WM_DESTROY, WM_INITDIALOG, WM_NEXTDLGCTL, WM_TIMER,
 };
 
 use crate::batch::{Finished, Progress};
@@ -123,11 +123,7 @@ impl Window {
         }
 
         if self.worker.as_ref().is_none_or(JoinHandle::is_finished) {
-            let finished = self
-                .worker
-                .take()
-                .and_then(|worker| worker.join().ok())
-                .unwrap_or_else(Finished::crashed);
+            let finished = self.worker.take().and_then(|worker| worker.join().ok()).unwrap_or_else(Finished::crashed);
             let view = result_view(&finished);
             self.finished = Some(finished);
             if !view.errors && !self.shown && !self.always_show() {

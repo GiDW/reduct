@@ -17,9 +17,7 @@ use reduct_common::formats::{is_heif, is_jpeg, is_supported};
 use reduct_common::listfile::read_list;
 use reduct_common::naming::{plan_outputs, Planned};
 use reduct_common::settings::Settings;
-use reduct_engine::{
-    commit, decode, encode_jpeg, heic_supported, init_com_mta, panic_message, ComGuard, EngineError,
-};
+use reduct_engine::{commit, decode, encode_jpeg, heic_supported, init_com_mta, panic_message, ComGuard, EngineError};
 
 use crate::paths;
 use crate::progress;
@@ -281,10 +279,7 @@ fn try_convert(planned: &Planned, settings: &Settings, heic: &OnceLock<bool>) ->
     if settings.keep_file_date {
         // Best effort: the output exists either way.
         if let Ok(modified) = source_meta.modified() {
-            let _ = OpenOptions::new()
-                .write(true)
-                .open(&written)
-                .and_then(|file| file.set_modified(modified));
+            let _ = OpenOptions::new().write(true).open(&written).and_then(|file| file.set_modified(modified));
         }
     }
     Ok(Outcome::Converted { source_bytes, output_bytes })
@@ -354,10 +349,7 @@ mod tests {
         write_log(&path, &[(&a, "no\tcodec"), (&b, "decode failed: 0x1 bad\r\ndata")]).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         let _ = fs::remove_file(&path);
-        assert_eq!(
-            text,
-            "C:\\Foto's\\Été.heic\tno codec\r\nC:\\x\\broken.jpg\tdecode failed: 0x1 bad  data\r\n"
-        );
+        assert_eq!(text, "C:\\Foto's\\Été.heic\tno codec\r\nC:\\x\\broken.jpg\tdecode failed: 0x1 bad  data\r\n");
     }
 
     #[test]
@@ -379,10 +371,7 @@ mod tests {
         assert_eq!(finished.exit_code(), 1);
         assert_eq!(finished.text().1, "Couldn't read the selection");
 
-        let logs: Vec<PathBuf> = fs::read_dir(data.join("logs"))
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .collect();
+        let logs: Vec<PathBuf> = fs::read_dir(data.join("logs")).unwrap().map(|entry| entry.unwrap().path()).collect();
         let text = fs::read_to_string(&logs[0]).unwrap();
         let _ = fs::remove_dir_all(&data);
         assert_eq!(logs.len(), 1);

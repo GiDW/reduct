@@ -27,9 +27,7 @@ pub fn init_com_mta() -> windows::core::Result<ComGuard> {
     // SAFETY: plain COM initialisation; S_OK and S_FALSE both need a matching
     // CoUninitialize, which the guard's Drop provides.
     unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok()?;
-    Ok(ComGuard {
-        _not_send: PhantomData,
-    })
+    Ok(ComGuard { _not_send: PhantomData })
 }
 
 impl Drop for ComGuard {

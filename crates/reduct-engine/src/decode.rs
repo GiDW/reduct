@@ -6,24 +6,18 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 
 use windows::core::{w, Interface, GUID, PCWSTR};
-use windows::Win32::Foundation::{
-    GENERIC_READ, WINCODEC_ERR_COMPONENTNOTFOUND, WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT,
-};
+use windows::Win32::Foundation::{GENERIC_READ, WINCODEC_ERR_COMPONENTNOTFOUND, WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT};
 use windows::Win32::Graphics::Imaging::{
-    GUID_WICPixelFormat16bppGray, GUID_WICPixelFormat16bppGrayFixedPoint,
-    GUID_WICPixelFormat16bppGrayHalf, GUID_WICPixelFormat24bppRGB, GUID_WICPixelFormat2bppGray,
-    GUID_WICPixelFormat32bppBGRA, GUID_WICPixelFormat32bppCMYK,
-    GUID_WICPixelFormat32bppGrayFixedPoint, GUID_WICPixelFormat32bppGrayFloat,
-    GUID_WICPixelFormat40bppCMYKAlpha, GUID_WICPixelFormat4bppGray,
-    GUID_WICPixelFormat64bppCMYK, GUID_WICPixelFormat80bppCMYKAlpha,
-    GUID_WICPixelFormat8bppGray, GUID_WICPixelFormatBlackWhite, IWICBitmapFrameDecode,
-    IWICBitmapSource, IWICColorContext,
-    IWICImagingFactory, IWICPalette, WICBitmapDitherTypeNone,
-    WICBitmapInterpolationModeHighQualityCubic, WICBitmapPaletteTypeCustom,
+    GUID_WICPixelFormat16bppGray, GUID_WICPixelFormat16bppGrayFixedPoint, GUID_WICPixelFormat16bppGrayHalf,
+    GUID_WICPixelFormat24bppRGB, GUID_WICPixelFormat2bppGray, GUID_WICPixelFormat32bppBGRA,
+    GUID_WICPixelFormat32bppCMYK, GUID_WICPixelFormat32bppGrayFixedPoint, GUID_WICPixelFormat32bppGrayFloat,
+    GUID_WICPixelFormat40bppCMYKAlpha, GUID_WICPixelFormat4bppGray, GUID_WICPixelFormat64bppCMYK,
+    GUID_WICPixelFormat80bppCMYKAlpha, GUID_WICPixelFormat8bppGray, GUID_WICPixelFormatBlackWhite,
+    IWICBitmapFrameDecode, IWICBitmapSource, IWICColorContext, IWICImagingFactory, IWICPalette,
+    WICBitmapDitherTypeNone, WICBitmapInterpolationModeHighQualityCubic, WICBitmapPaletteTypeCustom,
     WICBitmapTransformFlipHorizontal, WICBitmapTransformFlipVertical, WICBitmapTransformOptions,
-    WICBitmapTransformRotate0, WICBitmapTransformRotate180, WICBitmapTransformRotate270,
-    WICBitmapTransformRotate90, WICColorContextExifColorSpace, WICColorContextProfile,
-    WICDecodeMetadataCacheOnDemand, WICRect,
+    WICBitmapTransformRotate0, WICBitmapTransformRotate180, WICBitmapTransformRotate270, WICBitmapTransformRotate90,
+    WICColorContextExifColorSpace, WICColorContextProfile, WICDecodeMetadataCacheOnDemand, WICRect,
 };
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
 use windows::Win32::System::Variant::VT_UI2;
@@ -44,11 +38,7 @@ pub struct RgbImage {
 /// COM must be initialised on the calling thread (see [`crate::init_com_mta`]).
 /// `max_long_edge` scales the image down (never up) so that its longer side is
 /// at most that many pixels. Transparent pixels are flattened onto `background`.
-pub fn decode(
-    path: &Path,
-    max_long_edge: Option<u32>,
-    background: [u8; 3],
-) -> Result<RgbImage, EngineError> {
+pub fn decode(path: &Path, max_long_edge: Option<u32>, background: [u8; 3]) -> Result<RgbImage, EngineError> {
     let factory = wic_factory().map_err(|e| EngineError::Decode(describe("WIC factory", &e)))?;
     let frame = open_frame(&factory, path)?;
 
@@ -58,11 +48,7 @@ pub fn decode(
     let (width, height, pixels) = copy_pixels(&oriented, 4)?;
     // Flatten before scaling: scaling straight alpha would bleed the colour
     // of transparent pixels into the edges.
-    let upright = RgbImage {
-        width,
-        height,
-        data: try_flatten_bgra(&pixels, background).ok_or_else(out_of_memory)?,
-    };
+    let upright = RgbImage { width, height, data: try_flatten_bgra(&pixels, background).ok_or_else(out_of_memory)? };
     drop(pixels);
     scale_down(&factory, upright, max_long_edge)
 }
@@ -114,9 +100,7 @@ fn out_of_memory() -> EngineError {
 /// the flip with the opposite rotation to the spec table (verified on the
 /// orientation fixtures in CI).
 fn transform_for(orientation: u16) -> WICBitmapTransformOptions {
-    let combine = |a: WICBitmapTransformOptions, b: WICBitmapTransformOptions| {
-        WICBitmapTransformOptions(a.0 | b.0)
-    };
+    let combine = |a: WICBitmapTransformOptions, b: WICBitmapTransformOptions| WICBitmapTransformOptions(a.0 | b.0);
     match orientation {
         2 => WICBitmapTransformFlipHorizontal,
         3 => WICBitmapTransformRotate180,
@@ -138,13 +122,8 @@ fn scaled_size(width: u32, height: u32, max_long_edge: Option<u32>) -> Option<(u
         return None;
     }
     let short = width.min(height);
-    let new_short = ((u64::from(short) * u64::from(max) + u64::from(long) / 2) / u64::from(long))
-        .max(1) as u32;
-    Some(if width >= height {
-        (max, new_short)
-    } else {
-        (new_short, max)
-    })
+    let new_short = ((u64::from(short) * u64::from(max) + u64::from(long) / 2) / u64::from(long)).max(1) as u32;
+    Some(if width >= height { (max, new_short) } else { (new_short, max) })
 }
 
 // --- Thin wrappers around the WIC calls. All `unsafe` lives below. ---
@@ -157,12 +136,7 @@ fn open_frame(factory: &IWICImagingFactory, path: &Path) -> Result<IWICBitmapFra
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     // SAFETY: `wide` is NUL-terminated and outlives the call.
     let decoder = unsafe {
-        factory.CreateDecoderFromFilename(
-            PCWSTR(wide.as_ptr()),
-            None,
-            GENERIC_READ,
-            WICDecodeMetadataCacheOnDemand,
-        )
+        factory.CreateDecoderFromFilename(PCWSTR(wide.as_ptr()), None, GENERIC_READ, WICDecodeMetadataCacheOnDemand)
     }
     .map_err(|e| {
         let code = e.code();
@@ -191,11 +165,7 @@ fn read_orientation(frame: &IWICBitmapFrameDecode) -> u16 {
     let orientation = unsafe {
         let got = reader.GetMetadataByName(w!("System.Photo.Orientation"), &mut value);
         let inner = &value.Anonymous.Anonymous;
-        let result = if got.is_ok() && inner.vt == VT_UI2 {
-            inner.Anonymous.uiVal
-        } else {
-            1
-        };
+        let result = if got.is_ok() && inner.vt == VT_UI2 { inner.Anonymous.uiVal } else { 1 };
         let _ = PropVariantClear(&mut value);
         result
     };
@@ -209,19 +179,14 @@ fn read_orientation(frame: &IWICBitmapFrameDecode) -> u16 {
 /// Converts the frame to sRGB 32bpp BGRA. Uses the frame's colour profile
 /// when it has one (failing if WIC cannot apply it); without one the pixels
 /// are taken as sRGB and only the pixel format is converted.
-fn to_srgb_bgra(
-    factory: &IWICImagingFactory,
-    frame: &IWICBitmapFrameDecode,
-) -> Result<IWICBitmapSource, EngineError> {
+fn to_srgb_bgra(factory: &IWICImagingFactory, frame: &IWICBitmapFrameDecode) -> Result<IWICBitmapSource, EngineError> {
     let source: IWICBitmapSource = match color_transform(factory, frame)? {
         Some(transformed) => transformed,
         None => frame.clone().into(),
     };
     // SAFETY: plain COM calls; the converter is a no-op if the source is already BGRA.
     unsafe {
-        let converter = factory
-            .CreateFormatConverter()
-            .map_err(decode_err("format converter"))?;
+        let converter = factory.CreateFormatConverter().map_err(decode_err("format converter"))?;
         converter
             .Initialize(
                 &source,
@@ -303,15 +268,10 @@ fn icc_transform(
 ) -> Result<IWICBitmapSource, EngineError> {
     // SAFETY: plain COM calls on valid objects.
     unsafe {
-        let srgb = factory
-            .CreateColorContext()
-            .map_err(decode_err("colour transform: sRGB context"))?;
-        srgb.InitializeFromExifColorSpace(1)
-            .map_err(decode_err("colour transform: sRGB context"))?;
+        let srgb = factory.CreateColorContext().map_err(decode_err("colour transform: sRGB context"))?;
+        srgb.InitializeFromExifColorSpace(1).map_err(decode_err("colour transform: sRGB context"))?;
 
-        let transform = factory
-            .CreateColorTransformer()
-            .map_err(decode_err("colour transform"))?;
+        let transform = factory.CreateColorTransformer().map_err(decode_err("colour transform"))?;
         let first = transform.Initialize(frame, context, &srgb, &GUID_WICPixelFormat32bppBGRA);
         match first {
             Ok(()) => return Ok(transform.into()),
@@ -322,9 +282,7 @@ fn icc_transform(
         }
         // The transformer does not accept the decoder's pixel format: convert
         // to 32bpp BGRA first (pixel values unchanged) and transform BGRA -> BGRA.
-        let converter = factory
-            .CreateFormatConverter()
-            .map_err(decode_err("colour transform: format converter"))?;
+        let converter = factory.CreateFormatConverter().map_err(decode_err("colour transform: format converter"))?;
         converter
             .Initialize(
                 frame,
@@ -335,9 +293,7 @@ fn icc_transform(
                 WICBitmapPaletteTypeCustom,
             )
             .map_err(decode_err("colour transform: format conversion"))?;
-        let transform = factory
-            .CreateColorTransformer()
-            .map_err(decode_err("colour transform"))?;
+        let transform = factory.CreateColorTransformer().map_err(decode_err("colour transform"))?;
         transform
             .Initialize(&converter, context, &srgb, &GUID_WICPixelFormat32bppBGRA)
             .map_err(decode_err("colour transform"))?;
@@ -358,39 +314,22 @@ fn source_color_context(
         // The generated wrapper always passes a non-null array; WIC only
         // reports the count when the array is null, so call the vtable.
         let mut count = 0u32;
-        let counted = (Interface::vtable(frame).GetColorContexts)(
-            Interface::as_raw(frame),
-            0,
-            std::ptr::null_mut(),
-            &mut count,
-        )
-        .ok();
+        let counted =
+            (Interface::vtable(frame).GetColorContexts)(Interface::as_raw(frame), 0, std::ptr::null_mut(), &mut count)
+                .ok();
         if counted.is_err() || count == 0 {
             // Formats without colour contexts may report "unsupported" here.
             return Ok(None);
         }
         let mut contexts: Vec<Option<IWICColorContext>> = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            contexts.push(Some(
-                factory
-                    .CreateColorContext()
-                    .map_err(decode_err("colour contexts"))?,
-            ));
+            contexts.push(Some(factory.CreateColorContext().map_err(decode_err("colour contexts"))?));
         }
         let mut actual = 0u32;
-        frame
-            .GetColorContexts(&mut contexts, &mut actual)
-            .map_err(decode_err("colour contexts"))?;
-        let contexts: Vec<IWICColorContext> = contexts
-            .into_iter()
-            .take(actual as usize)
-            .flatten()
-            .collect();
+        frame.GetColorContexts(&mut contexts, &mut actual).map_err(decode_err("colour contexts"))?;
+        let contexts: Vec<IWICColorContext> = contexts.into_iter().take(actual as usize).flatten().collect();
 
-        if let Some(profile) = contexts
-            .iter()
-            .find(|c| c.GetType().is_ok_and(|t| t == WICColorContextProfile))
-        {
+        if let Some(profile) = contexts.iter().find(|c| c.GetType().is_ok_and(|t| t == WICColorContextProfile)) {
             return Ok(Some(profile.clone()));
         }
         let Some(first) = contexts.into_iter().next() else {
@@ -417,12 +356,8 @@ fn apply_orientation(
     }
     // SAFETY: plain COM calls.
     unsafe {
-        let rotator = factory
-            .CreateBitmapFlipRotator()
-            .map_err(decode_err("flip rotator"))?;
-        rotator
-            .Initialize(source, options)
-            .map_err(decode_err("orientation"))?;
+        let rotator = factory.CreateBitmapFlipRotator().map_err(decode_err("flip rotator"))?;
+        rotator.Initialize(source, options).map_err(decode_err("orientation"))?;
         Ok(rotator.into())
     }
 }
@@ -459,41 +394,26 @@ fn scale_down(
             .map_err(decode_err("scaling: bitmap"))?;
         let scaler = factory.CreateBitmapScaler().map_err(decode_err("scaler"))?;
         scaler
-            .Initialize(
-                &bitmap,
-                new_width,
-                new_height,
-                WICBitmapInterpolationModeHighQualityCubic,
-            )
+            .Initialize(&bitmap, new_width, new_height, WICBitmapInterpolationModeHighQualityCubic)
             .map_err(decode_err("scaling"))?;
         scaler
     };
     drop(image);
     let scaled: IWICBitmapSource = scaler.into();
     let (width, height, data) = copy_pixels(&scaled, 3)?;
-    Ok(RgbImage {
-        width,
-        height,
-        data,
-    })
+    Ok(RgbImage { width, height, data })
 }
 
 /// Copies the source (`bytes_per_pixel` bytes per pixel) into a tightly
 /// packed buffer.
-fn copy_pixels(
-    source: &IWICBitmapSource,
-    bytes_per_pixel: u32,
-) -> Result<(u32, u32, Vec<u8>), EngineError> {
+fn copy_pixels(source: &IWICBitmapSource, bytes_per_pixel: u32) -> Result<(u32, u32, Vec<u8>), EngineError> {
     let (width, height) = source_size(source)?;
-    let stride = width
-        .checked_mul(bytes_per_pixel)
-        .ok_or_else(|| EngineError::Decode("image too large".into()))?;
+    let stride = width.checked_mul(bytes_per_pixel).ok_or_else(|| EngineError::Decode("image too large".into()))?;
     let len = u32::try_from(u64::from(stride) * u64::from(height))
         .map_err(|_| EngineError::Decode("image too large".into()))?;
     let mut buffer = try_zeroed(len as usize).ok_or_else(out_of_memory)?;
     // SAFETY: a null rect means the whole image; `buffer` holds stride * height bytes.
-    unsafe { source.CopyPixels(std::ptr::null(), stride, &mut buffer) }
-        .map_err(decode_err("copy pixels"))?;
+    unsafe { source.CopyPixels(std::ptr::null(), stride, &mut buffer) }.map_err(decode_err("copy pixels"))?;
     Ok((width, height, buffer))
 }
 

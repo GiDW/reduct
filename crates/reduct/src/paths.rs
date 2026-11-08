@@ -53,9 +53,7 @@ pub fn save_settings(settings: &Settings) -> io::Result<()> {
 }
 
 fn load_settings_from(path: &Path) -> Settings {
-    fs::read_to_string(path)
-        .map(|text| Settings::parse(&text))
-        .unwrap_or_default()
+    fs::read_to_string(path).map(|text| Settings::parse(&text)).unwrap_or_default()
 }
 
 fn save_settings_to(path: &Path, settings: &Settings) -> io::Result<()> {

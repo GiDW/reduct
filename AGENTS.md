@@ -17,7 +17,7 @@ Reduct is a Windows-only app. It is built and tested only on GitHub Actions ([.g
 
 Instead:
 
-1. Make the change and review the diff carefully.
+1. Make the change, run `cargo fmt --all` and review the diff carefully. Formatting doesn't compile anything, so it is fine on any platform; CI fails on unformatted code.
 2. Commit and push. CI runs the tests, the release build, a batch smoke test and the resource, export and C-runtime checks.
 3. Check the workflow run (`gh run watch`, `gh run view --log-failed`) and fix what fails.
 

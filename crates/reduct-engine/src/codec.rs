@@ -6,8 +6,8 @@
 
 use windows::Win32::Foundation::E_FAIL;
 use windows::Win32::Graphics::Imaging::{
-    GUID_WICPixelFormat32bppBGRA, IWICPalette, WICBitmapDitherTypeNone,
-    WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
+    GUID_WICPixelFormat32bppBGRA, IWICPalette, WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom,
+    WICDecodeMetadataCacheOnDemand,
 };
 
 use crate::com::{init_com_mta, wic_factory};
@@ -36,8 +36,7 @@ fn probe_decode() -> windows::core::Result<()> {
     unsafe {
         let stream = factory.CreateStream()?;
         stream.InitializeFromMemory(PROBE_HEIC)?;
-        let decoder =
-            factory.CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnDemand)?;
+        let decoder = factory.CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnDemand)?;
         let frame = decoder.GetFrame(0)?;
         let converter = factory.CreateFormatConverter()?;
         converter.Initialize(
