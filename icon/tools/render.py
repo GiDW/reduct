@@ -46,6 +46,8 @@ for t in [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256]:
     for suffix in ["", "_altform-unplated", "_altform-lightunplated"]:
         square_full(f"Square44x44Logo.targetsize-{t}{suffix}.png", t)
 square_full("store-listing-300.png", 300)
+# Partner Center store logos: the 1:1 box art (2160 recommended, 1080 minimum).
+square_full("store-boxart-2160.png", 2160)
 square_full("master-1024.png", 1024)
 
 ico_sets = {

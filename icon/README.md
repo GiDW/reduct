@@ -30,12 +30,13 @@ The small versions are drawn on their own pixel grid:
 
 Re-run after changing a source, from this folder: `python3 -I tools/render.py`. The script uses only Playwright's headless Chromium, which is already installed on this Mac. It needs no Python packages.
 
-**`assets/` (74 PNGs), named so they drop straight into an MSIX `Images/` folder:**
+**`assets/` (75 PNGs), named so they drop straight into an MSIX `Images/` folder:**
 - `Square44x44Logo.scale-{100,125,150,200,400}`
 - `Square44x44Logo.targetsize-{16…256}` (14 sizes), each also as `_altform-unplated` and `_altform-lightunplated`. Windows 11 uses these for the taskbar, Start and the context menu
 - `Square71x71Logo`, `Square150x150Logo`, `Square310x310Logo` and `Wide310x150Logo`, each at all five scales. These are Windows 10-style tiles: the icon sits centred, with transparent padding
 - `StoreLogo.scale-*`
 - `store-listing-300.png`: the square logo for the Partner Center listing
+- `store-boxart-2160.png`: the 1:1 box art for the Partner Center listing (Store listing → Store logos). Without it, the Store shows the package's `StoreLogo`, which it caps at 100 px, so the icon on the store page looks blurry
 - `master-1024.png`
 
 **`ico/`:**
