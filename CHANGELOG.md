@@ -16,6 +16,8 @@ Changes that are merged but not released yet go under **Unreleased**. On release
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-11
+
 ### Added
 
 - Dutch, for the Netherlands and Belgium. Reduct follows the Windows display language: the settings, the progress window and the File Explorer command ("Optimaliseren met Reduct") are in Dutch when Dutch comes before English in the Windows language list.
@@ -48,5 +50,6 @@ The first release, in the Microsoft Store.
 - A settings window from the Start menu, with quality, where to save, the name-clash suffix, image size, the background for transparent areas and keeping the original file date.
 - x64 and ARM64 builds for Windows 11.
 
-[Unreleased]: https://github.com/GiDW/reduct/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/GiDW/reduct/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/GiDW/reduct/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/GiDW/reduct/releases/tag/v1.0.0
