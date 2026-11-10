@@ -198,6 +198,15 @@ jobs:
         if: always() && matrix.arch == 'x64'
         with: { name: cargo-lock, path: Cargo.lock }
 
+  store-listing:
+    # Checks store/*.md (field limits, screenshots, the "What's new" version)
+    # the way the `store` job reads them, so a broken listing shows up before
+    # a release rather than at submission time.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/store_submission.py check
+
   package:
     # Packages only what lands on main or a tag; PRs stop after `build`.
     if: github.event_name == 'push'
@@ -368,3 +377,31 @@ jobs:
         with:
           files: store/Reduct_${{ steps.version.outputs.package }}.msixupload
           fail_on_unmatched_files: true
+
+  store:
+    # Tags v* only: submits the release to the Microsoft Store, with the
+    # package and every listing from store/*.md. The `microsoft-store`
+    # environment holds the Partner Center credentials and needs the
+    # maintainer's approval, so nothing reaches the Store unseen. Setup:
+    # store/README.md.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release, store-listing]
+    runs-on: ubuntu-latest
+    environment: microsoft-store
+    concurrency: { group: microsoft-store, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with: { name: reduct-store, path: out/store }
+      - name: Submit to the Microsoft Store
+        shell: bash
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          # The Store ID from the listing URL, apps.microsoft.com/detail/9n12xrp8dn9v.
+          STORE_APP_ID: 9N12XRP8DN9V
+        run: |
+          set -euo pipefail
+          package=$(ls out/store/Reduct_*.msixupload)
+          python3 scripts/store_submission.py submit --package "$package"

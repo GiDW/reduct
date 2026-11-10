@@ -64,7 +64,7 @@ Reduct now speaks Dutch, and comes in British and American English: it follows y
 
 ## Product features
 
-One per line in Partner Center.
+One per line.
 
 ```text
 Optimise images from the File Explorer right-click menu

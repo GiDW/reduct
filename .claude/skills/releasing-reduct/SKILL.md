@@ -7,9 +7,9 @@ description: Use when releasing, tagging or publishing a new Reduct version, bum
 
 ## Overview
 
-A release turns `## [Unreleased]` in `CHANGELOG.md` into a version, tags it `v<version>`, and lets CI attach the Store upload to a GitHub Release. The maintainer then submits it in Partner Center. The version lives in three places that must agree: `Cargo.toml`, `Cargo.lock` and the tag. CI checks that the tag matches.
+A release turns `## [Unreleased]` in `CHANGELOG.md` into a version and tags it `v<version>`. CI then attaches the Store upload to a GitHub Release, and its `store` job submits the package and every listing in `store/` to the Microsoft Store once the maintainer approves the `microsoft-store` deployment. The version lives in three places that must agree: `Cargo.toml`, `Cargo.lock` and the tag. CI checks that the tag matches.
 
-**Pushing to `main` and pushing the tag publish the release. Ask the maintainer before each of them, even when the release itself was requested.**
+**Pushing to `main` and pushing the tag publish the release. Ask the maintainer before each of them, even when the release itself was requested. Never approve the `microsoft-store` deployment yourself: only the maintainer does that.**
 
 ## Choosing the version
 
@@ -38,19 +38,20 @@ If Unreleased is empty, there is nothing to release: say so and stop. If the mai
 8. Tag after the maintainer agrees: `git tag -a v<version> -m "Reduct <version>"`, then `git push origin v<version>`. Watch the tag's run. Its `release` job fails if the tag and the `Cargo.toml` version differ.
 9. Set the GitHub Release notes: write the new changelog section's body (its `###` groups, without the `## [<version>]` heading) to a temporary file, then run `gh release edit v<version> --notes-file <file>`. Check with `gh release view v<version>` that `Reduct_<version>.0.msixupload` is attached.
 
-## Hand-over to the maintainer (Partner Center)
+## Hand-over to the maintainer (Store submission)
 
-The agent can't do these steps. List them at the end of the release:
+The tag's run waits at the `store` job for the maintainer. List these steps at the end of the release:
 
-1. Apps and games → Reduct → new submission → Packages: upload `Reduct_<version>.0.msixupload` (`gh release download v<version>`).
-2. Store listings: paste "What's new" for English (United States) from `store/en-US.md`, English (United Kingdom) from `store/en-GB.md`, and Dutch (Netherlands) and Dutch (Belgium), both from `store/nl.md`.
-3. When the package declares a new language, its listing appears only after the upload. Fill in every field from the `store/` file, and upload the shared screenshots from `store/screenshots/` with the captions in that file.
-4. Submit for certification.
+1. Open the tag's workflow run (`gh run view <id> --web`), check that `release` attached `Reduct_<version>.0.msixupload`, and choose **Review deployments → microsoft-store → Approve and deploy**.
+2. The `store` job creates the submission, replaces the package, the four listings (`en-us`, `en-gb`, `nl-nl`, `nl-be`), the screenshots with their captions and the logos, commits it, and passes once the Store has started processing it. Certification then continues in Partner Center as usual.
+3. If the job fails, its log says why. Before the commit, and after a rejection by the Store, the job deletes its submission, so re-running the job starts clean. If it says a submission is already in progress, delete that one in Partner Center first. If it timed out after the commit, check Partner Center before re-running.
+
+Don't edit the listings in Partner Center: the next release overwrites them with `store/`.
 
 ## Common mistakes
 
 - Bumping `Cargo.toml` without `Cargo.lock`: every CI build fails under `--locked`.
 - Tagging before the version commit is on `main`: the tag's run fails its version check.
-- Leaving a "What's new" that describes the previous release.
+- Leaving a "What's new" that describes the previous release. The `store` job fails when its `For <version>.` note doesn't match `Cargo.toml` exactly, so bump the version in the release commit.
 - Treating "just do everything" as permission to push or tag: still ask before each one.
 - Changing the version for docs-only or CI-only changes: they have no changelog entry and need no release.

@@ -70,7 +70,7 @@ Windows 11, x64 or ARM64.
 Reduct is built and tested only on GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)), natively on an x64 and an ARM64 Windows runner. Every push to `main` produces two artifacts:
 
 - **`reduct-sideload`**: `Reduct_<version>.msixbundle` signed with a throwaway test certificate, that certificate (`reduct-test.cer`) and `INSTALL.txt` with the install steps.
-- **`reduct-store`**: `Reduct_<version>.msixupload`, the bundle plus symbols that is uploaded to the Microsoft Store. For a `v*` tag, CI also attaches it to the GitHub Release.
+- **`reduct-store`**: `Reduct_<version>.msixupload`, the bundle plus symbols that is uploaded to the Microsoft Store. For a `v*` tag, CI also attaches it to the GitHub Release and, once the maintainer approves, submits it to the Store with the listings from [store/](store/README.md).
 
 To sideload a CI build on Windows 11:
 

@@ -29,7 +29,7 @@ Set-StrictMode -Version Latest
 
 $Repo = Split-Path $PSScriptRoot -Parent
 $Archs = @('x64', 'arm64')
-# Store listing artwork, uploaded in Partner Center: not part of the package.
+# Store listing artwork, uploaded with the listings by scripts/store_submission.py: not part of the package.
 $ExcludedAssets = @('master-1024.png', 'store-listing-300.png', 'store-boxart-2160.png')
 
 function Find-SdkTool([string]$Name) {

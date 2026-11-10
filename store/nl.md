@@ -64,7 +64,7 @@ Reduct spreekt nu Nederlands: de app volgt de weergavetaal van Windows. De voort
 
 ## Product features
 
-One per line in Partner Center.
+One per line.
 
 ```text
 Afbeeldingen optimaliseren met een rechtermuisklik in Verkenner
