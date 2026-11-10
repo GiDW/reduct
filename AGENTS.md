@@ -25,3 +25,9 @@ Instead:
 
 - `bin-x64` / `bin-arm64` artifacts: the bare binaries. `Reduct.exe` opens the settings window. These don't include the File Explorer context menu, because Explorer only loads `ReductShell.dll` for an installed package.
 - `reduct-sideload` artifact: the test-signed MSIX bundle. Install it to test the context menu. The steps are in the README and in the artifact's `INSTALL.txt`. It is built only for pushes to `main`, not for pull requests.
+
+## Changelog
+
+Every change a user can notice adds a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in the same commit: `Added`, `Changed`, `Fixed` or `Removed`. Describe what changes for the user, not the code: "The progress bar fell behind the count on fast batches", not "Reworked set_bar". Changes to CI, tests, refactors and docs that users don't see get no entry.
+
+Releasing a version has its own steps: use the `releasing-reduct` skill ([.claude/skills/releasing-reduct/SKILL.md](.claude/skills/releasing-reduct/SKILL.md)).
