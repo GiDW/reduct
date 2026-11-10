@@ -363,18 +363,20 @@ fn show_result(hwnd: HWND, view: &ResultView) {
     set_text(hwnd, IDC_PROGRESS_STATUS, &view.headline);
     set_text(hwnd, IDC_PROGRESS_DETAIL, &view.detail);
     set_bar(hwnd, 1, 1);
-    show_item(hwnd, ID_CANCEL, false);
     if view.errors {
         // SAFETY: own child control; PBM_SETSTATE takes the state in wParam.
         unsafe { SendDlgItemMessageW(hwnd, IDC_PROGRESS_BAR, PBM_SETSTATE, WPARAM(PBST_ERROR as usize), LPARAM(0)) };
         show_item(hwnd, IDC_SHOW_LOG, view.log);
         show_item(hwnd, IDC_GET_HEVC, view.hevc);
-        show_item(hwnd, ID_OK, true);
-        // Cancel had the focus and is now hidden: move it to Close.
-        // SAFETY: own child control; lParam 1 means wParam is a window.
-        if let Ok(close) = unsafe { GetDlgItem(Some(hwnd), ID_OK) } {
-            unsafe { SendMessageW(hwnd, WM_NEXTDLGCTL, Some(WPARAM(close.0 as usize)), Some(LPARAM(1))) };
-        }
+    }
+    // Close takes Cancel's place, also on a result that closes itself, so the
+    // window keeps its layout instead of an empty band under the bar.
+    show_item(hwnd, ID_OK, true);
+    show_item(hwnd, ID_CANCEL, false);
+    // Cancel had the focus and is now hidden: move it to Close.
+    // SAFETY: own child control; lParam 1 means wParam is a window.
+    if let Ok(close) = unsafe { GetDlgItem(Some(hwnd), ID_OK) } {
+        unsafe { SendMessageW(hwnd, WM_NEXTDLGCTL, Some(WPARAM(close.0 as usize)), Some(LPARAM(1))) };
     }
 }
 
@@ -390,13 +392,21 @@ fn set_text(hwnd: HWND, id: i32, text: &str) {
     let _ = unsafe { SetDlgItemTextW(hwnd, id, PCWSTR(text.as_ptr())) };
 }
 
+/// Moves the bar to `done` of `total` at once. The themed bar animates every
+/// step forward and falls behind the count when files finish faster than the
+/// animation; a step back is drawn straight away. So this steps one past the
+/// position and back, with the range raised by one for that step.
 fn set_bar(hwnd: HWND, done: usize, total: usize) {
-    let total = total.max(1);
-    // SAFETY: own child control, with arguments as documented for each message.
-    unsafe {
-        SendDlgItemMessageW(hwnd, IDC_PROGRESS_BAR, PBM_SETRANGE32, WPARAM(0), LPARAM(total as isize));
-        SendDlgItemMessageW(hwnd, IDC_PROGRESS_BAR, PBM_SETPOS, WPARAM(done.min(total)), LPARAM(0));
-    }
+    let total = total.clamp(1, i32::MAX as usize - 1);
+    let pos = done.min(total);
+    let send = |msg, wparam: usize, lparam: usize| {
+        // SAFETY: own child control, with arguments as documented for each message.
+        unsafe { SendDlgItemMessageW(hwnd, IDC_PROGRESS_BAR, msg, WPARAM(wparam), LPARAM(lparam as isize)) };
+    };
+    send(PBM_SETRANGE32, 0, total + 1);
+    send(PBM_SETPOS, pos + 1, 0);
+    send(PBM_SETPOS, pos, 0);
+    send(PBM_SETRANGE32, 0, total);
 }
 
 fn show_item(hwnd: HWND, id: i32, show: bool) {

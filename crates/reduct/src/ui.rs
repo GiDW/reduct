@@ -9,7 +9,7 @@ use std::os::windows::ffi::OsStrExt;
 use reduct_common::naming::{OutputLocation, SuffixStyle};
 use reduct_common::settings::{Background, Settings};
 use windows::core::{w, BOOL, PCWSTR};
-use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, WPARAM};
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Controls::{
@@ -18,10 +18,10 @@ use windows::Win32::UI::Controls::{
 };
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DialogBoxParamW, EndDialog, GetDlgItem, GetDlgItemInt, MessageBoxW, SendDlgItemMessageW, SendMessageW,
-    SetDlgItemTextW, ShowWindow, BN_CLICKED, CBN_SELCHANGE, CB_ADDSTRING, CB_GETCURSEL, CB_SETCURSEL, ICON_BIG,
-    ICON_SMALL, IDCANCEL, IDOK, MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND, WM_INITDIALOG,
-    WM_SETICON,
+    DialogBoxParamW, EndDialog, GetDlgItem, GetDlgItemInt, GetWindowRect, MapDialogRect, MessageBoxW,
+    SendDlgItemMessageW, SendMessageW, SetDlgItemTextW, SetWindowPos, ShowWindow, BN_CLICKED, CBN_SELCHANGE,
+    CB_ADDSTRING, CB_GETCURSEL, CB_SETCURSEL, ICON_BIG, ICON_SMALL, IDCANCEL, IDOK, MB_ICONERROR, MB_OK,
+    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND, WM_INITDIALOG, WM_SETICON,
 };
 
 use crate::paths;
@@ -192,6 +192,48 @@ fn init_dialog(hwnd: HWND) {
             if let Ok(button) = GetDlgItem(Some(hwnd), IDC_HEIC_STORE) {
                 let _ = ShowWindow(button, SW_HIDE);
             }
+        }
+    }
+    if supported {
+        close_store_gap(hwnd);
+    }
+}
+
+/// With the Store button hidden, moves the bottom row up into its place and
+/// shrinks the dialog to match, so no empty band is left above the buttons.
+/// The positions are the template's (`IDD_SETTINGS` in `resources/reduct.rc`),
+/// in dialog units.
+fn close_store_gap(hwnd: HWND) {
+    const STORE_Y: i32 = 192;
+    const BUTTONS_Y: i32 = 217;
+    const BUTTONS: [(i32, i32, i32); 3] = [(IDC_LICENCES, 7, 60), (ID_OK, 150, 50), (ID_CANCEL, 207, 50)];
+    let pixels = |left: i32, top: i32, width: i32, height: i32| {
+        let mut rect = RECT { left, top, right: left + width, bottom: top + height };
+        // SAFETY: own dialog; `rect` is a valid RECT.
+        let _ = unsafe { MapDialogRect(hwnd, &mut rect) };
+        rect
+    };
+    // SAFETY: own dialog and child controls.
+    unsafe {
+        for (id, x, width) in BUTTONS {
+            if let Ok(button) = GetDlgItem(Some(hwnd), id) {
+                let r = pixels(x, STORE_Y, width, 14);
+                let _ = SetWindowPos(button, None, r.left, r.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
+        let shift = pixels(0, 0, 0, BUTTONS_Y - STORE_Y).bottom;
+        let mut window = RECT::default();
+        if GetWindowRect(hwnd, &mut window).is_ok() {
+            // Keep it centred where DS_CENTER put it.
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                window.left,
+                window.top + shift / 2,
+                window.right - window.left,
+                window.bottom - window.top - shift,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            );
         }
     }
 }
