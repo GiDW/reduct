@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn indexes_round_trip_and_match_the_entries() {
-        let en = &reduct_common::lang::EN;
+        let en = &reduct_common::lang::EN_GB;
         for o in [OutputLocation::NextToOriginal, OutputLocation::Subfolder] {
             assert_eq!(output_from_index(output_index(o)), Some(o));
             assert!(output_index(o) < en.save_to_entries.len());

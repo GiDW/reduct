@@ -444,7 +444,7 @@ mod tests {
     #[test]
     fn quick_batch_without_errors_never_shows() {
         let start = Instant::now();
-        let mut w = Window::new(Arc::default(), finished_worker(ok(3)), start, Lang::En);
+        let mut w = Window::new(Arc::default(), finished_worker(ok(3)), start, Lang::EnGb);
         assert_eq!(w.tick(start + Duration::from_millis(100)), vec![Action::Close]);
         assert!(!w.shown);
     }
@@ -461,7 +461,7 @@ mod tests {
             let _ = wait.recv();
             ok(2)
         });
-        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::En);
+        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::EnGb);
         assert_eq!(
             w.tick(start + Duration::from_millis(100)),
             vec![Action::Running { done: 0, total: 2, file: String::new() }, Action::Show]
@@ -473,7 +473,7 @@ mod tests {
         drop(w);
 
         // Already done at the first tick: the result still shows, briefly.
-        let mut w = Window::new(progress, finished_worker(ok(2)), start, Lang::En);
+        let mut w = Window::new(progress, finished_worker(ok(2)), start, Lang::EnGb);
         let at = start + Duration::from_millis(100);
         let actions = w.tick(at);
         assert!(matches!(&actions[..], [Action::Result(view), Action::Show] if !view.errors), "{actions:?}");
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn quick_batch_with_errors_shows_the_result_and_stays() {
         let start = Instant::now();
-        let mut w = Window::new(Arc::default(), finished_worker(failed()), start, Lang::En);
+        let mut w = Window::new(Arc::default(), finished_worker(failed()), start, Lang::EnGb);
         let actions = w.tick(start + Duration::from_millis(100));
         assert_eq!(
             actions,
@@ -510,7 +510,7 @@ mod tests {
             let _ = wait.recv();
             ok(10)
         });
-        let mut w = Window::new(Arc::default(), worker, start, Lang::En);
+        let mut w = Window::new(Arc::default(), worker, start, Lang::EnGb);
 
         assert_eq!(w.tick(start + Duration::from_millis(100)), Vec::new());
         assert_eq!(
@@ -540,7 +540,7 @@ mod tests {
             ok(1)
         });
         let progress: Arc<Progress> = Arc::default();
-        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::En);
+        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::EnGb);
 
         assert_eq!(w.on_cancel(), vec![Action::Cancelling]);
         assert!(progress.is_cancelled());
@@ -557,10 +557,10 @@ mod tests {
 
     #[test]
     fn running_copy() {
-        assert_eq!(Lang::En.progress_caption(0), "Reduct");
-        assert_eq!(Lang::En.progress_caption(1), "Optimising 1 image");
-        assert_eq!(Lang::En.progress_caption(10), "Optimising 10 images");
-        assert_eq!(Lang::En.progress_status(0, 0), "Preparing\u{2026}");
-        assert_eq!(Lang::En.progress_status(4, 10), "4 of 10 done");
+        assert_eq!(Lang::EnGb.progress_caption(0), "Reduct");
+        assert_eq!(Lang::EnGb.progress_caption(1), "Optimising 1 image");
+        assert_eq!(Lang::EnGb.progress_caption(10), "Optimising 10 images");
+        assert_eq!(Lang::EnGb.progress_status(0, 0), "Preparing\u{2026}");
+        assert_eq!(Lang::EnGb.progress_status(4, 10), "4 of 10 done");
     }
 }

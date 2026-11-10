@@ -67,7 +67,7 @@ fn commit_takes_next_suffix_when_target_appears() {
     let source = dir.join("a.png");
 
     let planned =
-        plan_outputs(&[source], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::En, &|p: &Path| {
+        plan_outputs(&[source], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::EnGb, &|p: &Path| {
             p.exists()
         })
         .remove(0);

@@ -32,7 +32,7 @@ If Unreleased is empty, there is nothing to release: say so and stop. If the mai
    - Rename `## [Unreleased]` to `## [<version>] - <today, YYYY-MM-DD>`, the day you tag it.
    - Add an empty `## [Unreleased]` above it.
    - Update the links at the bottom: `[Unreleased]: …/compare/v<version>...HEAD`, and add `[<version>]: …/compare/v<previous>...v<version>`.
-5. "What's new in this version" in `store/en-US.md` and `store/nl.md`: it must match the new changelog section, in one or two plain sentences per language, with the note above it saying "For <version>.". If it's already there and matches, keep it. Otherwise, rewrite it. The Dutch follows `store/nl.md`'s style (`je`, `Verkenner`).
+5. "What's new in this version" in `store/en-US.md`, `store/en-GB.md` and `store/nl.md`: it must match the new changelog section, in one or two plain sentences per language, with the note above it saying "For <version>.". If it's already there and matches, keep it. Otherwise, rewrite it. `en-US` uses American spelling and `en-GB` British, and the two say the same thing. The Dutch follows `store/nl.md`'s style (`je`, `Verkenner`).
 6. If the release changes UI text, check that the listing descriptions and features in `store/` still match `crates/reduct-common/src/lang.rs`.
 7. Run `cargo fmt --all --check`, review `git diff`, and commit `chore: released <version>`. Push `main` after the maintainer agrees, then watch CI with `gh run watch` until it passes.
 8. Tag after the maintainer agrees: `git tag -a v<version> -m "Reduct <version>"`, then `git push origin v<version>`. Watch the tag's run. Its `release` job fails if the tag and the `Cargo.toml` version differ.
@@ -43,7 +43,7 @@ If Unreleased is empty, there is nothing to release: say so and stop. If the mai
 The agent can't do these steps. List them at the end of the release:
 
 1. Apps and games → Reduct → new submission → Packages: upload `Reduct_<version>.0.msixupload` (`gh release download v<version>`).
-2. Store listings: paste "What's new" for English (United States), Dutch (Netherlands) and Dutch (Belgium). Both Dutch listings use `store/nl.md`.
+2. Store listings: paste "What's new" for English (United States) from `store/en-US.md`, English (United Kingdom) from `store/en-GB.md`, and Dutch (Netherlands) and Dutch (Belgium), both from `store/nl.md`.
 3. When the package declares a new language, its listing appears only after the upload. Fill in every field from the `store/` file, and upload the shared screenshots from `store/screenshots/` with the captions in that file.
 4. Submit for certification.
 

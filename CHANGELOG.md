@@ -20,9 +20,11 @@ Changes that are merged but not released yet go under **Unreleased**. On release
 
 - Dutch, for the Netherlands and Belgium. Reduct follows the Windows display language: the settings, the progress window and the File Explorer command ("Optimaliseren met Reduct") are in Dutch when Dutch comes before English in the Windows language list.
 - Dutch output names: the `Geoptimaliseerd` subfolder and the ` (geoptimaliseerd)` suffix. In Dutch, sizes use a decimal comma (`4,2 MB`).
+- Separate US and British English. The United States, Canada and the Philippines get American spelling, and so does any Windows language Reduct doesn't have. The other English regions (the UK, Ireland, Australia, New Zealand, India and more) keep British spelling.
 
 ### Changed
 
+- In US English, and for Windows languages Reduct doesn't have, Reduct uses American spelling: **Optimize with Reduct**, "Licenses", "canceled". New outputs go into an `Optimized` subfolder and get an ` (optimized)` suffix. Files already in an `Optimised` folder stay where they are.
 - The finished progress window shows **Close** where **Cancel** was, instead of an empty band.
 - With HEIC support installed, the settings window is shorter: the bottom buttons move up into the space of the hidden Store button.
 

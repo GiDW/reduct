@@ -124,13 +124,15 @@ mod tests {
     #[test]
     fn candidate_table() {
         use SuffixStyle::*;
-        assert_eq!(candidate("s", Underscore, Lang::En, 0), "s.jpg");
-        assert_eq!(candidate("s", Underscore, Lang::En, 1), "s_2.jpg");
-        assert_eq!(candidate("s", Underscore, Lang::En, 2), "s_3.jpg");
-        assert_eq!(candidate("s", Optimised, Lang::En, 0), "s.jpg");
-        assert_eq!(candidate("s", Optimised, Lang::En, 1), "s (optimised).jpg");
-        assert_eq!(candidate("s", Optimised, Lang::En, 2), "s (optimised 2).jpg");
-        assert_eq!(candidate("s", Optimised, Lang::En, 7), "s (optimised 7).jpg");
+        assert_eq!(candidate("s", Underscore, Lang::EnGb, 0), "s.jpg");
+        assert_eq!(candidate("s", Underscore, Lang::EnGb, 1), "s_2.jpg");
+        assert_eq!(candidate("s", Underscore, Lang::EnGb, 2), "s_3.jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnGb, 0), "s.jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnGb, 1), "s (optimised).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnGb, 2), "s (optimised 2).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnGb, 7), "s (optimised 7).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnUs, 1), "s (optimized).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::EnUs, 2), "s (optimized 2).jpg");
         assert_eq!(candidate("s", Optimised, Lang::Nl, 1), "s (geoptimaliseerd).jpg");
         assert_eq!(candidate("s", Optimised, Lang::Nl, 2), "s (geoptimaliseerd 2).jpg");
         assert_eq!(candidate("s", Underscore, Lang::Nl, 1), "s_2.jpg");
@@ -142,7 +144,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\IMG_0042.HEIC")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
-            Lang::En,
+            Lang::EnGb,
             &none,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\IMG_0042.jpg")]);
@@ -154,16 +156,17 @@ mod tests {
         let src = PathBuf::from(r"C:\p\photo.jpg");
         let exists = |p: &Path| key(p) == key(Path::new(r"C:\p\photo.jpg"));
         let u =
-            plan_outputs(&[src.clone()], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::En, &exists);
+            plan_outputs(&[src.clone()], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::EnGb, &exists);
         assert_eq!(targets(&u), vec![PathBuf::from(r"C:\p\photo_2.jpg")]);
-        let o = plan_outputs(&[src.clone()], SuffixStyle::Optimised, OutputLocation::NextToOriginal, Lang::En, &exists);
+        let o =
+            plan_outputs(&[src.clone()], SuffixStyle::Optimised, OutputLocation::NextToOriginal, Lang::EnGb, &exists);
         assert_eq!(targets(&o), vec![PathBuf::from(r"C:\p\photo (optimised).jpg")]);
         // Even if `exists` misses it, the source is never its own target.
         let n = plan_outputs(
             &[PathBuf::from(r"C:\p\PHOTO.JPG")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
-            Lang::En,
+            Lang::EnGb,
             &none,
         );
         assert_eq!(targets(&n), vec![PathBuf::from(r"C:\p\PHOTO_2.jpg")]);
@@ -175,7 +178,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\IMG_1.HEIC"), PathBuf::from(r"C:\p\IMG_1.PNG")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
-            Lang::En,
+            Lang::EnGb,
             &none,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\IMG_1.jpg"), PathBuf::from(r"C:\p\IMG_1_2.jpg")]);
@@ -191,7 +194,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\a.png")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
-            Lang::En,
+            Lang::EnGb,
             &exists,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\a_3.jpg")]);
@@ -205,7 +208,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\a.png"), PathBuf::from(r"C:\p\photo.jpg")],
             SuffixStyle::Underscore,
             OutputLocation::Subfolder,
-            Lang::En,
+            Lang::EnGb,
             &exists,
         );
         assert_eq!(
@@ -222,6 +225,14 @@ mod tests {
             &none,
         );
         assert_eq!(targets(&nl), vec![PathBuf::from(r"C:\p\Geoptimaliseerd\a.jpg")]);
+        let us = plan_outputs(
+            &[PathBuf::from(r"C:\p\a.png")],
+            SuffixStyle::Underscore,
+            OutputLocation::Subfolder,
+            Lang::EnUs,
+            &none,
+        );
+        assert_eq!(targets(&us), vec![PathBuf::from(r"C:\p\Optimized\a.jpg")]);
     }
 
     #[test]
@@ -230,7 +241,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\Été à Gent.HEIC")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
-            Lang::En,
+            Lang::EnGb,
             &none,
         );
         assert_eq!(p[0].stem, "Été à Gent");

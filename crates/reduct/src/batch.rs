@@ -387,7 +387,7 @@ mod tests {
 
         let finished = run_in(&list, &data, &Progress::default());
         assert_eq!(finished.exit_code(), 1);
-        assert_eq!(finished.text(Lang::En).1, "Couldn't read the selection");
+        assert_eq!(finished.text(Lang::EnGb).1, "Couldn't read the selection");
         assert_eq!(finished.text(Lang::Nl).1, "Kan de selectie niet lezen");
 
         let logs: Vec<PathBuf> = fs::read_dir(data.join("logs")).unwrap().map(|entry| entry.unwrap().path()).collect();

@@ -1,19 +1,27 @@
-//! The UI language and every user-facing string, in English and Dutch.
+//! The UI language and every user-facing string, in US English, British
+//! English and Dutch.
 //!
 //! Reduct follows the Windows display language: the first language in the
 //! user's preferred UI languages that Reduct has (`en-*` or `nl-*`) wins, and
-//! anything else gets English. Belgian and Netherlands Dutch share one text.
+//! anything else gets US English, the package's default language.
 //!
-//! The English is British (`Optimise`), as in the rest of the app. The Dutch
-//! follows Microsoft's Dutch style: informal `je`, `Verkenner` for File
-//! Explorer. The Store listing texts are in `store/` at the repository root.
+//! - US English (`Optimize`, `colors`, `Licenses`) for `en-US`, Canada, the
+//!   Philippines and the US territories, and for a bare `en`.
+//! - British English (`Optimise`, `colours`, `Licences`) for every other
+//!   English region: the UK, Ireland, Australia, New Zealand, India, ...
+//! - Dutch for `nl-*`: Belgian and Netherlands Dutch share one text. It
+//!   follows Microsoft's Dutch style: informal `je`, `Verkenner` for File
+//!   Explorer.
+//!
+//! The Store listing texts are in `store/` at the repository root.
 
 use std::sync::OnceLock;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Lang {
     #[default]
-    En,
+    EnUs,
+    EnGb,
     Nl,
 }
 
@@ -25,25 +33,34 @@ impl Lang {
     }
 
     /// The first of `languages` (BCP 47 names such as `nl-BE`, most preferred
-    /// first) that Reduct has; English when none is.
+    /// first) that Reduct has; US English when none is.
     pub fn pick<S: AsRef<str>>(languages: &[S]) -> Lang {
-        languages
-            .iter()
-            .find_map(|tag| {
-                let primary = tag.as_ref().split(['-', '_']).next().unwrap_or_default();
-                match primary.to_ascii_lowercase().as_str() {
-                    "en" => Some(Lang::En),
-                    "nl" => Some(Lang::Nl),
-                    _ => None,
-                }
-            })
-            .unwrap_or_default()
+        languages.iter().find_map(|tag| Lang::from_tag(tag.as_ref())).unwrap_or_default()
+    }
+
+    fn from_tag(tag: &str) -> Option<Lang> {
+        let mut subtags = tag.split(['-', '_']);
+        let primary = subtags.next().unwrap_or_default().to_ascii_lowercase();
+        // The region is the first subtag after the language that is two
+        // letters or three digits (`en-GB`, `en-Latn-GB`, `en-150`).
+        let region = subtags
+            .find(|s| s.len() == 2 || (s.len() == 3 && s.bytes().all(|b| b.is_ascii_digit())))
+            .map(str::to_ascii_uppercase);
+        match primary.as_str() {
+            "en" => Some(match region.as_deref() {
+                None | Some("US" | "CA" | "PH" | "PR" | "GU" | "AS" | "VI" | "MP" | "UM") => Lang::EnUs,
+                Some(_) => Lang::EnGb,
+            }),
+            "nl" => Some(Lang::Nl),
+            _ => None,
+        }
     }
 
     /// The strings in this language.
     pub fn text(self) -> &'static Text {
         match self {
-            Lang::En => &EN,
+            Lang::EnUs => &EN_US,
+            Lang::EnGb => &EN_GB,
             Lang::Nl => &NL,
         }
     }
@@ -52,8 +69,10 @@ impl Lang {
     pub fn progress_caption(self, total: usize) -> String {
         match (self, total) {
             (_, 0) => "Reduct".to_owned(),
-            (Lang::En, 1) => "Optimising 1 image".to_owned(),
-            (Lang::En, n) => format!("Optimising {n} images"),
+            (Lang::EnUs, 1) => "Optimizing 1 image".to_owned(),
+            (Lang::EnUs, n) => format!("Optimizing {n} images"),
+            (Lang::EnGb, 1) => "Optimising 1 image".to_owned(),
+            (Lang::EnGb, n) => format!("Optimising {n} images"),
             (Lang::Nl, 1) => "1 afbeelding optimaliseren".to_owned(),
             (Lang::Nl, n) => format!("{n} afbeeldingen optimaliseren"),
         }
@@ -63,7 +82,7 @@ impl Lang {
     pub fn progress_status(self, done: usize, total: usize) -> String {
         match (self, total) {
             (_, 0) => self.text().preparing.to_owned(),
-            (Lang::En, total) => format!("{done} of {total} done"),
+            (Lang::EnUs | Lang::EnGb, total) => format!("{done} of {total} done"),
             (Lang::Nl, total) => format!("{done} van {total} klaar"),
         }
     }
@@ -72,16 +91,19 @@ impl Lang {
     /// `saved` is given.
     pub fn optimised(self, count: u32, saved: Option<&str>) -> String {
         let base = match (self, count) {
-            (Lang::En, 0) => return "No images optimised".to_owned(),
+            (Lang::EnUs, 0) => return "No images optimized".to_owned(),
+            (Lang::EnGb, 0) => return "No images optimised".to_owned(),
             (Lang::Nl, 0) => return "Geen afbeeldingen geoptimaliseerd".to_owned(),
-            (Lang::En, 1) => "1 image optimised".to_owned(),
-            (Lang::En, n) => format!("{n} images optimised"),
+            (Lang::EnUs, 1) => "1 image optimized".to_owned(),
+            (Lang::EnUs, n) => format!("{n} images optimized"),
+            (Lang::EnGb, 1) => "1 image optimised".to_owned(),
+            (Lang::EnGb, n) => format!("{n} images optimised"),
             (Lang::Nl, 1) => "1 afbeelding geoptimaliseerd".to_owned(),
             (Lang::Nl, n) => format!("{n} afbeeldingen geoptimaliseerd"),
         };
         match (self, saved) {
             (_, None) => base,
-            (Lang::En, Some(size)) => format!("{base}, saved {size}"),
+            (Lang::EnUs | Lang::EnGb, Some(size)) => format!("{base}, saved {size}"),
             (Lang::Nl, Some(size)) => format!("{base}, {size} bespaard"),
         }
     }
@@ -89,7 +111,7 @@ impl Lang {
     /// `2 skipped (already smaller)`.
     pub fn skipped(self, n: u32) -> String {
         match self {
-            Lang::En => format!("{n} skipped (already smaller)"),
+            Lang::EnUs | Lang::EnGb => format!("{n} skipped (already smaller)"),
             Lang::Nl => format!("{n} overgeslagen (al kleiner)"),
         }
     }
@@ -97,15 +119,16 @@ impl Lang {
     /// `3 failed`.
     pub fn failed(self, n: u32) -> String {
         match self {
-            Lang::En => format!("{n} failed"),
+            Lang::EnUs | Lang::EnGb => format!("{n} failed"),
             Lang::Nl => format!("{n} mislukt"),
         }
     }
 
-    /// `6 cancelled`.
+    /// `6 cancelled` (`canceled` in US English).
     pub fn cancelled(self, n: u32) -> String {
         match self {
-            Lang::En => format!("{n} cancelled"),
+            Lang::EnUs => format!("{n} canceled"),
+            Lang::EnGb => format!("{n} cancelled"),
             Lang::Nl => format!("{n} geannuleerd"),
         }
     }
@@ -113,7 +136,7 @@ impl Lang {
     /// `Couldn't save the settings: <error>`.
     pub fn save_failed(self, error: &str) -> String {
         match self {
-            Lang::En => format!("Couldn't save the settings: {error}"),
+            Lang::EnUs | Lang::EnGb => format!("Couldn't save the settings: {error}"),
             Lang::Nl => format!("Kan de instellingen niet opslaan: {error}"),
         }
     }
@@ -121,7 +144,7 @@ impl Lang {
     /// `Couldn't write <path>: <error>`.
     pub fn write_failed(self, path: &str, error: &str) -> String {
         match self {
-            Lang::En => format!("Couldn't write {path}: {error}"),
+            Lang::EnUs | Lang::EnGb => format!("Couldn't write {path}: {error}"),
             Lang::Nl => format!("Kan {path} niet schrijven: {error}"),
         }
     }
@@ -129,7 +152,7 @@ impl Lang {
     /// `Couldn't open <target>.`
     pub fn open_failed(self, target: &str) -> String {
         match self {
-            Lang::En => format!("Couldn't open {target}."),
+            Lang::EnUs | Lang::EnGb => format!("Couldn't open {target}."),
             Lang::Nl => format!("Kan {target} niet openen."),
         }
     }
@@ -137,7 +160,7 @@ impl Lang {
     /// The decimal separator in sizes such as `4.2 MB`.
     pub fn decimal_separator(self) -> char {
         match self {
-            Lang::En => '.',
+            Lang::EnUs | Lang::EnGb => '.',
             Lang::Nl => ',',
         }
     }
@@ -190,7 +213,54 @@ pub struct Text {
     pub selection_unreadable: &'static str,
 }
 
-pub static EN: Text = Text {
+pub static EN_US: Text = Text {
+    menu_title: "Optimize with Reduct",
+    subfolder: "Optimized",
+    suffix_word: "optimized",
+
+    settings_caption: "Reduct settings",
+    settings_hint: "To optimize images, select them in File Explorer, right-click and choose Optimize with Reduct.",
+    quality: "Quality",
+    save_to: "Save to",
+    name_taken: "When the name is taken",
+    image_size: "Image size",
+    transparent_areas: "Transparent areas",
+    keep_date: "Keep the original file date",
+    licences: "Licenses",
+    ok: "OK",
+    cancel: "Cancel",
+    get_from_store: "Get from Microsoft Store",
+    heic_installed: "HEIC support: installed",
+    heic_missing: "HEIC support: missing. HEIC photos need Microsoft's HEVC Video Extensions.",
+    save_to_entries: ["Next to the original", "\"Optimized\" subfolder"],
+    name_taken_entries: ["Add _2, _3, \u{2026}", "Add (optimized)"],
+    image_size_entries: [
+        "Original size",
+        "Large: for big screens and TVs (3840 px)",
+        "Medium: for sharing online (2048 px)",
+        "Small: for email and chat apps (1280 px)",
+        "Very small: for attachments and forms (800 px)",
+    ],
+    image_size_hints: [
+        "Images keep their size. Only the compression makes the files smaller.",
+        "Sharp on big screens and TVs, with somewhat smaller files. Smaller images stay as they are.",
+        "Fine on any screen, with much smaller files. Smaller images stay as they are.",
+        "Good for email and chat apps, with small files. Smaller images stay as they are.",
+        "For attachments and upload forms with a size limit. Smaller images stay as they are.",
+    ],
+    background_entries: ["White", "Black"],
+
+    preparing: "Preparing\u{2026}",
+    cancelling: "Canceling\u{2026}",
+    close: "Close",
+    show_details: "Show details",
+    get_hevc: "Get HEVC extension",
+    heic_needs_hevc: "HEIC needs Microsoft's HEVC extension",
+    something_went_wrong: "Something went wrong",
+    selection_unreadable: "Couldn't read the selection",
+};
+
+pub static EN_GB: Text = Text {
     menu_title: "Optimise with Reduct",
     subfolder: "Optimised",
     suffix_word: "optimised",
@@ -324,14 +394,24 @@ mod tests {
         assert_eq!(Lang::pick(&["nl-NL"]), Lang::Nl);
         assert_eq!(Lang::pick(&["NL"]), Lang::Nl);
         assert_eq!(Lang::pick(&["fr-BE", "nl-BE", "en-GB"]), Lang::Nl);
-        assert_eq!(Lang::pick(&["en-GB", "nl-BE"]), Lang::En);
-        assert_eq!(Lang::pick(&["fr-FR", "de-DE"]), Lang::En);
-        assert_eq!(Lang::pick::<&str>(&[]), Lang::En);
+        assert_eq!(Lang::pick(&["en-GB", "nl-BE"]), Lang::EnGb);
+        assert_eq!(Lang::pick(&["fr-FR", "de-DE"]), Lang::EnUs);
+        assert_eq!(Lang::pick::<&str>(&[]), Lang::EnUs);
+    }
+
+    #[test]
+    fn english_regions_get_their_spelling() {
+        for tag in ["en-US", "en-us", "en", "en-CA", "en-PH", "en-PR", "en_US"] {
+            assert_eq!(Lang::pick(&[tag]), Lang::EnUs, "{tag}");
+        }
+        for tag in ["en-GB", "en-IE", "en-AU", "en-NZ", "en-IN", "en-ZA", "en-150", "en-Latn-GB"] {
+            assert_eq!(Lang::pick(&[tag]), Lang::EnGb, "{tag}");
+        }
     }
 
     #[test]
     fn formatted_copy() {
-        assert_eq!(Lang::En.progress_caption(0), "Reduct");
+        assert_eq!(Lang::EnGb.progress_caption(0), "Reduct");
         assert_eq!(Lang::Nl.progress_caption(1), "1 afbeelding optimaliseren");
         assert_eq!(Lang::Nl.progress_caption(13), "13 afbeeldingen optimaliseren");
         assert_eq!(Lang::Nl.progress_status(0, 0), "Voorbereiden\u{2026}");
@@ -339,6 +419,12 @@ mod tests {
         assert_eq!(Lang::Nl.optimised(0, Some("1 MB")), "Geen afbeeldingen geoptimaliseerd");
         assert_eq!(Lang::Nl.optimised(1, None), "1 afbeelding geoptimaliseerd");
         assert_eq!(Lang::Nl.optimised(13, Some("38 MB")), "13 afbeeldingen geoptimaliseerd, 38 MB bespaard");
-        assert_eq!(Lang::En.optimised(13, Some("38 MB")), "13 images optimised, saved 38 MB");
+        assert_eq!(Lang::EnGb.optimised(13, Some("38 MB")), "13 images optimised, saved 38 MB");
+        assert_eq!(Lang::EnUs.optimised(13, Some("38 MB")), "13 images optimized, saved 38 MB");
+        assert_eq!(Lang::EnUs.optimised(0, None), "No images optimized");
+        assert_eq!(Lang::EnUs.progress_caption(2), "Optimizing 2 images");
+        assert_eq!(Lang::EnUs.cancelled(6), "6 canceled");
+        assert_eq!(Lang::EnGb.cancelled(6), "6 cancelled");
+        assert_eq!(EN_US.menu_title, "Optimize with Reduct");
     }
 }

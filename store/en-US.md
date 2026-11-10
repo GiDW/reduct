@@ -5,12 +5,12 @@ status: active
 created: 2026-11-10
 project: [side-projects]
 tags: [reduct, microsoft-store, store-listing, localisation]
-related: [README.md, nl.md]
+related: [README.md, en-GB.md, nl.md]
 ---
 
 # Store listing: English (United States)
 
-The listing uses British spelling (`optimise`, `colours`), like the app itself. The description, short description and product features below are the 1.0.0 listing, with one line added about the languages.
+American spelling (`optimize`, `colors`), as in the app's US English. Use it for **English (United States)**. It's the British text in [en-GB.md](en-GB.md), respelled: keep the two in step. From 1.1.0, US users get an `Optimized` subfolder and an ` (optimized)` suffix, so the description says `Optimized`.
 
 ## Product name
 
@@ -23,7 +23,7 @@ Reduct
 ```text
 Make your photos smaller, straight from File Explorer.
 
-Select one or more images, right-click and choose "Optimise with Reduct". Reduct turns them into compact JPEGs and saves them next to the originals. Your original files are never changed, overwritten or deleted.
+Select one or more images, right-click and choose "Optimize with Reduct". Reduct turns them into compact JPEGs and saves them next to the originals. Your original files are never changed, overwritten or deleted.
 
 Great for photos from your phone: HEIC pictures become JPEGs that open everywhere, and large photos become small enough to email, share or upload.
 
@@ -32,14 +32,14 @@ What Reduct does
 - Makes files much smaller with an efficient JPEG encoder (mozjpeg), while keeping photos looking good.
 - Keeps photos the right way up.
 - Removes hidden metadata, such as the location where a photo was taken.
-- Converts colours so photos look the same on every screen.
+- Converts colors so photos look the same on every screen.
 - Fills transparent areas with white or black.
 - Shows a small progress window, with a Cancel button for big batches.
 
 Settings
 Start Reduct from the Start menu to choose:
 - Quality, from 1 to 100.
-- Where to save: next to the original, or in an "Optimised" subfolder.
+- Where to save: next to the original, or in an "Optimized" subfolder.
 - Image size: keep the original size, or make images smaller for big screens, sharing online, email and chat apps, or attachments and forms.
 - Whether to keep the original file date.
 
@@ -49,7 +49,7 @@ Reduct works entirely on your PC. It makes no internet connections and collects 
 HEIC photos
 To open HEIC photos, Windows needs Microsoft's free HEIF Image Extensions and HEVC Video Extensions. Many PCs already have them. If they are missing, Reduct tells you and links to the Microsoft Store.
 
-Available in English and Dutch: Reduct follows your Windows display language.
+Available in English (US and UK) and Dutch: Reduct follows your Windows display language.
 
 Requires Windows 11.
 ```
@@ -59,7 +59,7 @@ Requires Windows 11.
 For 1.1.0.
 
 ```text
-Reduct now speaks Dutch: it follows your Windows display language. The progress bar now keeps up with the count, and the settings and progress windows are tidier.
+Reduct now speaks Dutch, and comes in American and British English: it follows your Windows display language. In US English, menus and new output names now use American spelling: "Optimize with Reduct" and an "Optimized" subfolder. The progress bar now keeps up with the count, and the settings and progress windows are tidier.
 ```
 
 ## Product features
@@ -67,7 +67,7 @@ Reduct now speaks Dutch: it follows your Windows display language. The progress 
 One per line in Partner Center.
 
 ```text
-Optimise images from the File Explorer right-click menu
+Optimize images from the File Explorer right-click menu
 Converts JPG, PNG, WebP, HEIC, HEIF and AVIF to JPEG
 Much smaller files with the mozjpeg encoder
 Original files are never changed or deleted
@@ -76,23 +76,23 @@ Image sizes for screens, sharing online, email and forms
 Removes hidden metadata such as photo location
 Keeps photos the right way up
 Works offline: no internet connection, no data collected
-Available in English and Dutch
+Available in English (US and UK) and Dutch
 ```
 
 ## Short description
 
 ```text
-Make photos smaller from File Explorer: right-click, choose Optimise with Reduct, and get compact JPEGs next to the originals. Works with JPG, PNG, WebP, HEIC and AVIF. Originals stay untouched.
+Make photos smaller from File Explorer: right-click, choose Optimize with Reduct, and get compact JPEGs next to the originals. Works with JPG, PNG, WebP, HEIC and AVIF. Originals stay untouched.
 ```
 
 ## Screenshot captions
 
-The screenshots are in [screenshots/](screenshots/), numbered in listing order.
+The screenshots are in [screenshots/](screenshots/), numbered in listing order. They show the British UI ("Optimise with Reduct"), so these captions don't quote menu text.
 
 | # | Screenshot | Caption |
 | --- | --- | --- |
-| 1 | `1-context-menu.png` | `Right-click your photos and choose Optimise with Reduct` |
-| 2 | `2-progress.png` | `Reduct optimises the whole selection in one go` |
+| 1 | `1-context-menu.png` | `Right-click your photos in File Explorer to make them smaller` |
+| 2 | `2-progress.png` | `Reduct optimizes the whole selection in one go` |
 | 3 | `3-result.png` | `Done: 13 photos, 38 MB smaller` |
 | 4 | `4-details-view.png` | `The JPEGs sit next to the untouched originals` |
 | 5 | `5-settings.png` | `Choose the quality, where to save and the image size` |
@@ -106,7 +106,7 @@ image compressor
 HEIC to JPG
 resize photos
 reduce image size
-JPEG optimiser
+JPEG optimizer
 convert WebP to JPG
 compress photos
 ```

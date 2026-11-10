@@ -30,6 +30,7 @@
        Strings\<language>\Resources.resw, so the package has resources for it. -->
   <Resources>
     <Resource Language="en-US" />
+    <Resource Language="en-GB" />
     <Resource Language="nl-NL" />
     <Resource Language="nl-BE" />
   </Resources>

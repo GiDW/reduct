@@ -40,7 +40,13 @@ The settings window also shows whether HEIC support is installed and links to th
 
 ## Languages
 
-Reduct is in English and Dutch. It follows the Windows display language: Dutch when Dutch (Netherlands or Belgium) comes before English in the Windows language list, English otherwise. The output names follow the language too: the Dutch subfolder is `Geoptimaliseerd` and the Dutch suffix is ` (geoptimaliseerd)`. All UI text is in [crates/reduct-common/src/lang.rs](crates/reduct-common/src/lang.rs). The Store listing texts are in [store/](store/README.md).
+Reduct is in US English, British English and Dutch. It follows the Windows display language, picking the first language in the Windows language list that it has:
+
+- **US English** for `en-US`, Canada, the Philippines and the US territories, and for any language Reduct doesn't have: **Optimize with Reduct**, an `Optimized` subfolder, the ` (optimized)` suffix.
+- **British English** for every other English region (the UK, Ireland, Australia, New Zealand, India, ...): **Optimise with Reduct**, `Optimised`, ` (optimised)`.
+- **Dutch** for the Netherlands and Belgium: **Optimaliseren met Reduct**, `Geoptimaliseerd`, ` (geoptimaliseerd)`.
+
+This README uses British spelling. All UI text is in [crates/reduct-common/src/lang.rs](crates/reduct-common/src/lang.rs). The Store listing texts are in [store/](store/README.md).
 
 ## HEIC and HEIF
 
