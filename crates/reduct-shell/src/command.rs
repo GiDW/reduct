@@ -5,6 +5,7 @@ use std::io;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 
+use reduct_common::lang::Lang;
 use reduct_common::{formats, listfile};
 use windows::Win32::Foundation::{CloseHandle, E_FAIL, E_NOTIMPL, HMODULE};
 use windows::Win32::System::Com::{CoTaskMemFree, IBindCtx};
@@ -22,8 +23,6 @@ use windows_core::{implement, Error, Ref, Result, BOOL, GUID, HRESULT, PCWSTR, P
 
 use crate::{guard, CLSID_OPTIMISE};
 
-/// Context-menu text (British spelling, see the global constraints).
-const TITLE: &str = "Optimise with Reduct";
 /// Icon file next to `ReductShell.dll` in the package.
 const ICON_FILE: &str = "reduct-menu.ico";
 /// The app execution alias, relative to `%LOCALAPPDATA%`.
@@ -36,7 +35,7 @@ pub struct Command;
 
 impl IExplorerCommand_Impl for Command_Impl {
     fn GetTitle(&self, _items: Ref<IShellItemArray>) -> Result<PWSTR> {
-        guard::catch(|| sh_str_dup(OsStr::new(TITLE)))
+        guard::catch(|| sh_str_dup(OsStr::new(Lang::current().text().menu_title)))
     }
 
     fn GetIcon(&self, _items: Ref<IShellItemArray>) -> Result<PWSTR> {

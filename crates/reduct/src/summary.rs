@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use reduct_common::lang::Lang;
+
 /// What happened to one file of a batch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
@@ -55,38 +57,31 @@ pub fn summarize(outcomes: &[Outcome]) -> Summary {
 
 /// The progress window's headline and detail line for a finished batch. A
 /// saving under 1 KB counts as no saving.
-pub fn result_text(s: &Summary) -> (String, String) {
-    let title = if s.converted == 0 {
-        "No images optimised".to_owned()
-    } else {
-        let images = if s.converted == 1 { "image" } else { "images" };
-        if s.bytes_saved >= 1000 {
-            format!("{} {images} optimised, saved {}", s.converted, format_size(s.bytes_saved as u64))
-        } else {
-            format!("{} {images} optimised", s.converted)
-        }
-    };
+pub fn result_text(s: &Summary, lang: Lang) -> (String, String) {
+    let saved = (s.converted > 0 && s.bytes_saved >= 1000).then(|| format_size(s.bytes_saved as u64, lang));
+    let title = lang.optimised(s.converted, saved.as_deref());
 
     let mut extras = Vec::new();
     if s.skipped > 0 {
-        extras.push(format!("{} skipped (already smaller)", s.skipped));
+        extras.push(lang.skipped(s.skipped));
     }
     if s.failed > 0 {
-        extras.push(format!("{} failed", s.failed));
+        extras.push(lang.failed(s.failed));
     }
     if s.codec_missing > 0 {
-        extras.push("HEIC needs Microsoft's HEVC extension".to_owned());
+        extras.push(lang.text().heic_needs_hevc.to_owned());
     }
     if s.cancelled > 0 {
-        extras.push(format!("{} cancelled", s.cancelled));
+        extras.push(lang.cancelled(s.cancelled));
     }
     (title, extras.join(", "))
 }
 
 /// Formats a byte count in decimal units: whole `KB` under 1 MB, one decimal
 /// from 1 MB to under 10 MB, whole `MB` from 10 MB (including values that
-/// round up to 10.0 MB).
-pub fn format_size(bytes: u64) -> String {
+/// round up to 10.0 MB). The decimal separator is the language's (`4,2 MB`
+/// in Dutch).
+pub fn format_size(bytes: u64, lang: Lang) -> String {
     const MB: u64 = 1_000_000;
     if bytes < MB {
         format!("{} KB", (bytes + 500) / 1000)
@@ -95,7 +90,7 @@ pub fn format_size(bytes: u64) -> String {
         if tenths >= 100 {
             format!("{} MB", tenths / 10)
         } else {
-            format!("{}.{} MB", tenths / 10, tenths % 10)
+            format!("{}{}{} MB", tenths / 10, lang.decimal_separator(), tenths % 10)
         }
     } else {
         format!("{} MB", (bytes + MB / 2) / MB)
@@ -117,50 +112,74 @@ mod tests {
     #[test]
     fn result_text_cases() {
         // Something converted, with a saving.
-        assert_eq!(result_text(&summary(42, 0, 0, 0, 61_000_000)), text("42 images optimised, saved 61 MB", ""));
         assert_eq!(
-            result_text(&summary(42, 2, 3, 0, 61_000_000)),
+            result_text(&summary(42, 0, 0, 0, 61_000_000), Lang::En),
+            text("42 images optimised, saved 61 MB", "")
+        );
+        assert_eq!(
+            result_text(&summary(42, 2, 3, 0, 61_000_000), Lang::En),
             text("42 images optimised, saved 61 MB", "2 skipped (already smaller), 3 failed")
         );
         // Something converted, no saving.
-        assert_eq!(result_text(&summary(3, 0, 0, 0, 0)), text("3 images optimised", ""));
+        assert_eq!(result_text(&summary(3, 0, 0, 0, 0), Lang::En), text("3 images optimised", ""));
         assert_eq!(
-            result_text(&summary(3, 1, 0, 0, -5_000)),
+            result_text(&summary(3, 1, 0, 0, -5_000), Lang::En),
             text("3 images optimised", "1 skipped (already smaller)")
         );
         // Nothing converted.
         assert_eq!(
-            result_text(&summary(0, 2, 3, 3, 0)),
+            result_text(&summary(0, 2, 3, 3, 0), Lang::En),
             text("No images optimised", "2 skipped (already smaller), 3 failed, HEIC needs Microsoft's HEVC extension")
         );
         // Singular.
-        assert_eq!(result_text(&summary(1, 0, 0, 0, 4_200_000)), text("1 image optimised, saved 4.2 MB", ""));
-        assert_eq!(result_text(&summary(1, 0, 1, 0, 0)), text("1 image optimised", "1 failed"));
+        assert_eq!(result_text(&summary(1, 0, 0, 0, 4_200_000), Lang::En), text("1 image optimised, saved 4.2 MB", ""));
+        assert_eq!(result_text(&summary(1, 0, 1, 0, 0), Lang::En), text("1 image optimised", "1 failed"));
     }
 
     #[test]
     fn cancelled_files_are_counted_last() {
         let s = Summary { cancelled: 6, ..summary(4, 0, 1, 0, 2_000_000) };
-        assert_eq!(result_text(&s), text("4 images optimised, saved 2.0 MB", "1 failed, 6 cancelled"));
+        assert_eq!(result_text(&s, Lang::En), text("4 images optimised, saved 2.0 MB", "1 failed, 6 cancelled"));
     }
 
     #[test]
     fn savings_under_one_kb_count_as_none() {
-        assert_eq!(result_text(&summary(2, 0, 0, 0, 999)), text("2 images optimised", ""));
-        assert_eq!(result_text(&summary(2, 0, 0, 0, 1)), text("2 images optimised", ""));
-        assert_eq!(result_text(&summary(2, 0, 0, 0, 1000)), text("2 images optimised, saved 1 KB", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 999), Lang::En), text("2 images optimised", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 1), Lang::En), text("2 images optimised", ""));
+        assert_eq!(result_text(&summary(2, 0, 0, 0, 1000), Lang::En), text("2 images optimised, saved 1 KB", ""));
     }
 
     #[test]
     fn format_sizes() {
-        assert_eq!(format_size(999_999), "1000 KB");
-        assert_eq!(format_size(4_200_000), "4.2 MB");
-        assert_eq!(format_size(61_000_000), "61 MB");
-        assert_eq!(format_size(1_000_000), "1.0 MB");
-        assert_eq!(format_size(10_000_000), "10 MB");
-        assert_eq!(format_size(12_345), "12 KB");
-        assert_eq!(format_size(9_949_999), "9.9 MB");
-        assert_eq!(format_size(9_950_000), "10 MB");
+        assert_eq!(format_size(999_999, Lang::En), "1000 KB");
+        assert_eq!(format_size(4_200_000, Lang::En), "4.2 MB");
+        assert_eq!(format_size(61_000_000, Lang::En), "61 MB");
+        assert_eq!(format_size(1_000_000, Lang::En), "1.0 MB");
+        assert_eq!(format_size(10_000_000, Lang::En), "10 MB");
+        assert_eq!(format_size(12_345, Lang::En), "12 KB");
+        assert_eq!(format_size(9_949_999, Lang::En), "9.9 MB");
+        assert_eq!(format_size(9_950_000, Lang::En), "10 MB");
+        assert_eq!(format_size(4_200_000, Lang::Nl), "4,2 MB");
+        assert_eq!(format_size(61_000_000, Lang::Nl), "61 MB");
+    }
+
+    #[test]
+    fn dutch_result_text() {
+        assert_eq!(
+            result_text(&summary(13, 0, 0, 0, 38_000_000), Lang::Nl),
+            text("13 afbeeldingen geoptimaliseerd, 38 MB bespaard", "")
+        );
+        assert_eq!(
+            result_text(&Summary { cancelled: 6, ..summary(1, 2, 3, 1, 4_200_000) }, Lang::Nl),
+            text(
+                "1 afbeelding geoptimaliseerd, 4,2 MB bespaard",
+                "2 overgeslagen (al kleiner), 3 mislukt, HEIC vereist de HEVC-extensie van Microsoft, 6 geannuleerd"
+            )
+        );
+        assert_eq!(
+            result_text(&summary(0, 1, 0, 0, 0), Lang::Nl),
+            text("Geen afbeeldingen geoptimaliseerd", "1 overgeslagen (al kleiner)")
+        );
     }
 
     #[test]

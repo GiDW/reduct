@@ -7,7 +7,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use reduct_common::naming::{candidate, Planned};
+use reduct_common::naming::Planned;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, WIN32_ERROR};
 use windows::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
@@ -31,7 +31,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// needed, the bytes go to a temp file `<stem>.tmp-<pid>-<n>.reduct-tmp` in that
 /// folder (`n` is a process-wide counter; a temp name that already exists
 /// is left alone and the next `n` is tried), and the temp file is moved to
-/// `candidate(stem, style, k)` with `MoveFileExW(MOVEFILE_WRITE_THROUGH)`, never with
+/// `planned.name(k)` with `MoveFileExW(MOVEFILE_WRITE_THROUGH)`, never with
 /// `MOVEFILE_REPLACE_EXISTING`. If the name is taken, the next `k` is tried,
 /// up to `planned.k + 1000`. The temp file is deleted on every failure.
 pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
@@ -42,7 +42,7 @@ pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
     let tmp_wide = wide(&tmp);
     let last = planned.k.saturating_add(MAX_RETRIES);
     for k in planned.k..=last {
-        let target = planned.dir.join(candidate(&planned.stem, planned.style, k));
+        let target = planned.dir.join(planned.name(k));
         let target_wide = wide(&target);
         // SAFETY: both buffers are NUL-terminated UTF-16 and outlive the call.
         let moved =
@@ -70,11 +70,7 @@ pub fn commit(bytes: &[u8], planned: &Planned) -> Result<PathBuf, EngineError> {
     let _ = fs::remove_file(&tmp);
     Err(EngineError::Io(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        format!(
-            "every output name from {} to {} is taken",
-            candidate(&planned.stem, planned.style, planned.k),
-            candidate(&planned.stem, planned.style, last)
-        ),
+        format!("every output name from {} to {} is taken", planned.name(planned.k), planned.name(last)),
     )))
 }
 

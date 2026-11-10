@@ -3,12 +3,15 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use crate::lang::Lang;
+
 /// How a clashing output name gets a suffix.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SuffixStyle {
     /// `stem_2.jpg`, `stem_3.jpg`, ...
     Underscore,
-    /// `stem (optimised).jpg`, `stem (optimised 2).jpg`, ...
+    /// `stem (optimised).jpg`, `stem (optimised 2).jpg`, ..., with the word in
+    /// the UI language (`geoptimaliseerd` in Dutch).
     Optimised,
 }
 
@@ -17,29 +20,28 @@ pub enum SuffixStyle {
 pub enum OutputLocation {
     /// In the source's folder.
     NextToOriginal,
-    /// In a folder called [`SUBFOLDER`] inside the source's folder.
+    /// In a subfolder of the source's folder, named in the UI language
+    /// (`Optimised`, `Geoptimaliseerd`: [`Text::subfolder`](crate::lang::Text::subfolder)).
     Subfolder,
 }
 
-/// Name of the output subfolder for [`OutputLocation::Subfolder`].
-pub const SUBFOLDER: &str = "Optimised";
-
 /// The output file name for attempt `k`, including `.jpg`.
-pub fn candidate(stem: &str, style: SuffixStyle, k: u32) -> String {
+pub fn candidate(stem: &str, style: SuffixStyle, lang: Lang, k: u32) -> String {
+    let word = lang.text().suffix_word;
     match (style, k) {
         (_, 0) => format!("{stem}.jpg"),
         (SuffixStyle::Underscore, k) => format!("{stem}_{}.jpg", k + 1),
-        (SuffixStyle::Optimised, 1) => format!("{stem} (optimised).jpg"),
-        (SuffixStyle::Optimised, k) => format!("{stem} (optimised {k}).jpg"),
+        (SuffixStyle::Optimised, 1) => format!("{stem} ({word}).jpg"),
+        (SuffixStyle::Optimised, k) => format!("{stem} ({word} {k}).jpg"),
     }
 }
 
 /// The folder the output for `source` goes into.
-pub fn target_dir(source: &Path, loc: OutputLocation) -> PathBuf {
+pub fn target_dir(source: &Path, loc: OutputLocation, lang: Lang) -> PathBuf {
     let parent = source.parent().map(Path::to_path_buf).unwrap_or_default();
     match loc {
         OutputLocation::NextToOriginal => parent,
-        OutputLocation::Subfolder => parent.join(SUBFOLDER),
+        OutputLocation::Subfolder => parent.join(lang.text().subfolder),
     }
 }
 
@@ -54,12 +56,19 @@ pub struct Planned {
     pub stem: String,
     pub k: u32,
     pub style: SuffixStyle,
+    /// The language of the `(optimised)` suffix.
+    pub lang: Lang,
 }
 
 impl Planned {
-    /// Full path of the planned output file: `dir` joined with `candidate(stem, style, k)`.
+    /// Full path of the planned output file: `dir` joined with `candidate(stem, style, lang, k)`.
     pub fn target(&self) -> PathBuf {
-        self.dir.join(candidate(&self.stem, self.style, self.k))
+        self.dir.join(self.name(self.k))
+    }
+
+    /// The file name for attempt `k`: `candidate(stem, style, lang, k)`.
+    pub fn name(&self, k: u32) -> String {
+        candidate(&self.stem, self.style, self.lang, k)
     }
 }
 
@@ -78,15 +87,16 @@ pub fn plan_outputs(
     sources: &[PathBuf],
     style: SuffixStyle,
     loc: OutputLocation,
+    lang: Lang,
     exists: &dyn Fn(&Path) -> bool,
 ) -> Vec<Planned> {
     let mut claimed: HashSet<String> = sources.iter().map(|s| key(s)).collect();
     sources
         .iter()
         .map(|source| {
-            let dir = target_dir(source, loc);
+            let dir = target_dir(source, loc, lang);
             let stem = source.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-            let mut planned = Planned { source: source.clone(), dir, stem, k: 0, style };
+            let mut planned = Planned { source: source.clone(), dir, stem, k: 0, style, lang };
             loop {
                 let target = planned.target();
                 if !exists(&target) && claimed.insert(key(&target)) {
@@ -114,13 +124,16 @@ mod tests {
     #[test]
     fn candidate_table() {
         use SuffixStyle::*;
-        assert_eq!(candidate("s", Underscore, 0), "s.jpg");
-        assert_eq!(candidate("s", Underscore, 1), "s_2.jpg");
-        assert_eq!(candidate("s", Underscore, 2), "s_3.jpg");
-        assert_eq!(candidate("s", Optimised, 0), "s.jpg");
-        assert_eq!(candidate("s", Optimised, 1), "s (optimised).jpg");
-        assert_eq!(candidate("s", Optimised, 2), "s (optimised 2).jpg");
-        assert_eq!(candidate("s", Optimised, 7), "s (optimised 7).jpg");
+        assert_eq!(candidate("s", Underscore, Lang::En, 0), "s.jpg");
+        assert_eq!(candidate("s", Underscore, Lang::En, 1), "s_2.jpg");
+        assert_eq!(candidate("s", Underscore, Lang::En, 2), "s_3.jpg");
+        assert_eq!(candidate("s", Optimised, Lang::En, 0), "s.jpg");
+        assert_eq!(candidate("s", Optimised, Lang::En, 1), "s (optimised).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::En, 2), "s (optimised 2).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::En, 7), "s (optimised 7).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::Nl, 1), "s (geoptimaliseerd).jpg");
+        assert_eq!(candidate("s", Optimised, Lang::Nl, 2), "s (geoptimaliseerd 2).jpg");
+        assert_eq!(candidate("s", Underscore, Lang::Nl, 1), "s_2.jpg");
     }
 
     #[test]
@@ -129,6 +142,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\IMG_0042.HEIC")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
+            Lang::En,
             &none,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\IMG_0042.jpg")]);
@@ -139,15 +153,17 @@ mod tests {
     fn jpg_source_always_gets_suffix() {
         let src = PathBuf::from(r"C:\p\photo.jpg");
         let exists = |p: &Path| key(p) == key(Path::new(r"C:\p\photo.jpg"));
-        let u = plan_outputs(&[src.clone()], SuffixStyle::Underscore, OutputLocation::NextToOriginal, &exists);
+        let u =
+            plan_outputs(&[src.clone()], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::En, &exists);
         assert_eq!(targets(&u), vec![PathBuf::from(r"C:\p\photo_2.jpg")]);
-        let o = plan_outputs(&[src.clone()], SuffixStyle::Optimised, OutputLocation::NextToOriginal, &exists);
+        let o = plan_outputs(&[src.clone()], SuffixStyle::Optimised, OutputLocation::NextToOriginal, Lang::En, &exists);
         assert_eq!(targets(&o), vec![PathBuf::from(r"C:\p\photo (optimised).jpg")]);
         // Even if `exists` misses it, the source is never its own target.
         let n = plan_outputs(
             &[PathBuf::from(r"C:\p\PHOTO.JPG")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
+            Lang::En,
             &none,
         );
         assert_eq!(targets(&n), vec![PathBuf::from(r"C:\p\PHOTO_2.jpg")]);
@@ -159,6 +175,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\IMG_1.HEIC"), PathBuf::from(r"C:\p\IMG_1.PNG")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
+            Lang::En,
             &none,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\IMG_1.jpg"), PathBuf::from(r"C:\p\IMG_1_2.jpg")]);
@@ -174,6 +191,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\a.png")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
+            Lang::En,
             &exists,
         );
         assert_eq!(targets(&p), vec![PathBuf::from(r"C:\p\a_3.jpg")]);
@@ -187,6 +205,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\a.png"), PathBuf::from(r"C:\p\photo.jpg")],
             SuffixStyle::Underscore,
             OutputLocation::Subfolder,
+            Lang::En,
             &exists,
         );
         assert_eq!(
@@ -194,6 +213,15 @@ mod tests {
             vec![PathBuf::from(r"C:\p\Optimised\a.jpg"), PathBuf::from(r"C:\p\Optimised\photo.jpg")]
         );
         assert_eq!(p[0].dir, PathBuf::from(r"C:\p\Optimised"));
+
+        let nl = plan_outputs(
+            &[PathBuf::from(r"C:\p\a.png")],
+            SuffixStyle::Optimised,
+            OutputLocation::Subfolder,
+            Lang::Nl,
+            &none,
+        );
+        assert_eq!(targets(&nl), vec![PathBuf::from(r"C:\p\Geoptimaliseerd\a.jpg")]);
     }
 
     #[test]
@@ -202,6 +230,7 @@ mod tests {
             &[PathBuf::from(r"C:\p\Été à Gent.HEIC")],
             SuffixStyle::Underscore,
             OutputLocation::NextToOriginal,
+            Lang::En,
             &none,
         );
         assert_eq!(p[0].stem, "Été à Gent");

@@ -4,7 +4,8 @@ Builds the Reduct MSIX packages, the bundle and the Store upload file.
 
 .DESCRIPTION
 For x64 and arm64: stages the binaries, icons and notices, writes the
-manifest, builds resources.pri and packs Reduct_<v>_<arch>.msix. Then bundles
+manifest, builds resources.pri (with the manifest strings in
+package\Strings) and packs Reduct_<v>_<arch>.msix. Then bundles
 both into Reduct_<v>.msixbundle (signed only with -SignPfx) and zips the
 unsigned bundle plus one .appxsym (zip of the PDBs) per architecture into
 Reduct_<v>.msixupload.
@@ -28,7 +29,8 @@ Set-StrictMode -Version Latest
 
 $Repo = Split-Path $PSScriptRoot -Parent
 $Archs = @('x64', 'arm64')
-$ExcludedAssets = @('master-1024.png', 'store-listing-300.png')
+# Store listing artwork, uploaded in Partner Center: not part of the package.
+$ExcludedAssets = @('master-1024.png', 'store-listing-300.png', 'store-boxart-2160.png')
 
 function Find-SdkTool([string]$Name) {
     $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
@@ -99,6 +101,8 @@ foreach ($arch in $Archs) {
     Copy-Item (Join-Path $Repo 'icon\ico\reduct-menu.ico') $stage
     Copy-Item (Join-Path $Repo 'THIRD-PARTY-NOTICES.txt') $stage
     $assets | Copy-Item -Destination $images
+    # The manifest strings, one Strings\<language>\Resources.resw per language.
+    Copy-Item (Join-Path $Repo 'package\Strings') $stage -Recurse
 
     # 2. Write the manifest.
     $manifest = $template.Replace('{{VERSION}}', $Version).Replace('{{ARCH}}', $arch)
@@ -113,6 +117,8 @@ foreach ($arch in $Archs) {
     $pris = @(Get-ChildItem $work -Filter "resources-$arch*.pri")
     if ($pris.Count -ne 1) { throw "makepri wrote $($pris.Count) PRI files: $($pris.Name -join ', ')" }
     Move-Item $pri (Join-Path $stage 'resources.pri')
+    # The strings are in resources.pri now; the .resw sources stay out of the package.
+    Remove-Item -Recurse -Force (Join-Path $stage 'Strings')
 
     # 4. Pack.
     $msix = Join-Path $Out "Reduct_${Version}_$arch.msix"

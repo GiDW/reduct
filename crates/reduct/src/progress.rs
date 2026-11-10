@@ -38,6 +38,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_DESTROY, WM_INITDIALOG, WM_NEXTDLGCTL, WM_TIMER,
 };
 
+use reduct_common::lang::Lang;
+
 use crate::batch::{Finished, Progress};
 use crate::ui::{make_int_resource, module, open, set_icons, wide, wide_os, HEVC_STORE_URI};
 
@@ -74,6 +76,7 @@ struct Window {
     close_at: Option<Instant>,
     /// The (done, total, file) last shown, so unchanged text isn't redrawn.
     last: Option<(usize, usize, String)>,
+    lang: Lang,
 }
 
 /// What the window should do after a tick or a command.
@@ -97,7 +100,7 @@ struct ResultView {
 }
 
 impl Window {
-    fn new(progress: Arc<Progress>, worker: JoinHandle<Finished>, started: Instant) -> Window {
+    fn new(progress: Arc<Progress>, worker: JoinHandle<Finished>, started: Instant, lang: Lang) -> Window {
         Window {
             progress,
             worker: Some(worker),
@@ -107,6 +110,7 @@ impl Window {
             cancelling: false,
             close_at: None,
             last: None,
+            lang,
         }
     }
 
@@ -124,7 +128,7 @@ impl Window {
 
         if self.worker.as_ref().is_none_or(JoinHandle::is_finished) {
             let finished = self.worker.take().and_then(|worker| worker.join().ok()).unwrap_or_else(Finished::crashed);
-            let view = result_view(&finished);
+            let view = result_view(&finished, self.lang);
             self.finished = Some(finished);
             if !view.errors && !self.shown && !self.always_show() {
                 return vec![Action::Close];
@@ -190,31 +194,14 @@ impl Window {
     }
 }
 
-fn result_view(finished: &Finished) -> ResultView {
-    let (headline, detail) = finished.text();
+fn result_view(finished: &Finished, lang: Lang) -> ResultView {
+    let (headline, detail) = finished.text(lang);
     ResultView {
         headline,
         detail,
         errors: finished.has_errors(),
         log: finished.log.is_some(),
         hevc: finished.codec_missing(),
-    }
-}
-
-/// `Optimising N images`, the running window's title.
-fn caption(total: usize) -> String {
-    match total {
-        0 => "Reduct".to_owned(),
-        1 => "Optimising 1 image".to_owned(),
-        n => format!("Optimising {n} images"),
-    }
-}
-
-fn status(done: usize, total: usize) -> String {
-    if total == 0 {
-        "Preparing\u{2026}".to_owned()
-    } else {
-        format!("{done} of {total} done")
     }
 }
 
@@ -237,7 +224,7 @@ pub fn run(progress: Arc<Progress>, worker: JoinHandle<Finished>) -> Finished {
     // SAFETY: `icc` is a valid, initialised struct.
     let _ = unsafe { InitCommonControlsEx(&icc) };
 
-    WINDOW.with(|w| *w.borrow_mut() = Some(Window::new(progress, worker, Instant::now())));
+    WINDOW.with(|w| *w.borrow_mut() = Some(Window::new(progress, worker, Instant::now(), Lang::current())));
     // SAFETY: the template is in this module's resources and dialog_proc has
     // the DLGPROC signature.
     let created =
@@ -277,6 +264,16 @@ unsafe extern "system" fn dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, _lpa
     match msg {
         WM_INITDIALOG => {
             set_icons(hwnd);
+            let text = Lang::current().text();
+            for (id, label) in [
+                (IDC_PROGRESS_STATUS, text.preparing),
+                (IDC_SHOW_LOG, text.show_details),
+                (IDC_GET_HEVC, text.get_hevc),
+                (ID_OK, text.close),
+                (ID_CANCEL, text.cancel),
+            ] {
+                set_text(hwnd, id, label);
+            }
             for id in [IDC_SHOW_LOG, IDC_GET_HEVC, ID_OK] {
                 show_item(hwnd, id, false);
             }
@@ -337,13 +334,14 @@ fn apply(hwnd: HWND, actions: Vec<Action>) {
                 }
             }
             Action::Running { done, total, file } => {
-                set_caption(hwnd, &caption(total));
-                set_text(hwnd, IDC_PROGRESS_STATUS, &status(done, total));
+                let lang = Lang::current();
+                set_caption(hwnd, &lang.progress_caption(total));
+                set_text(hwnd, IDC_PROGRESS_STATUS, &lang.progress_status(done, total));
                 set_text(hwnd, IDC_PROGRESS_DETAIL, &file);
                 set_bar(hwnd, done, total);
             }
             Action::Cancelling => {
-                set_text(hwnd, IDC_PROGRESS_STATUS, "Cancelling\u{2026}");
+                set_text(hwnd, IDC_PROGRESS_STATUS, Lang::current().text().cancelling);
                 set_text(hwnd, IDC_PROGRESS_DETAIL, "");
                 show_item(hwnd, ID_CANCEL, false);
             }
@@ -446,7 +444,7 @@ mod tests {
     #[test]
     fn quick_batch_without_errors_never_shows() {
         let start = Instant::now();
-        let mut w = Window::new(Arc::default(), finished_worker(ok(3)), start);
+        let mut w = Window::new(Arc::default(), finished_worker(ok(3)), start, Lang::En);
         assert_eq!(w.tick(start + Duration::from_millis(100)), vec![Action::Close]);
         assert!(!w.shown);
     }
@@ -463,7 +461,7 @@ mod tests {
             let _ = wait.recv();
             ok(2)
         });
-        let mut w = Window::new(Arc::clone(&progress), worker, start);
+        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::En);
         assert_eq!(
             w.tick(start + Duration::from_millis(100)),
             vec![Action::Running { done: 0, total: 2, file: String::new() }, Action::Show]
@@ -475,7 +473,7 @@ mod tests {
         drop(w);
 
         // Already done at the first tick: the result still shows, briefly.
-        let mut w = Window::new(progress, finished_worker(ok(2)), start);
+        let mut w = Window::new(progress, finished_worker(ok(2)), start, Lang::En);
         let at = start + Duration::from_millis(100);
         let actions = w.tick(at);
         assert!(matches!(&actions[..], [Action::Result(view), Action::Show] if !view.errors), "{actions:?}");
@@ -485,7 +483,7 @@ mod tests {
     #[test]
     fn quick_batch_with_errors_shows_the_result_and_stays() {
         let start = Instant::now();
-        let mut w = Window::new(Arc::default(), finished_worker(failed()), start);
+        let mut w = Window::new(Arc::default(), finished_worker(failed()), start, Lang::En);
         let actions = w.tick(start + Duration::from_millis(100));
         assert_eq!(
             actions,
@@ -512,7 +510,7 @@ mod tests {
             let _ = wait.recv();
             ok(10)
         });
-        let mut w = Window::new(Arc::default(), worker, start);
+        let mut w = Window::new(Arc::default(), worker, start, Lang::En);
 
         assert_eq!(w.tick(start + Duration::from_millis(100)), Vec::new());
         assert_eq!(
@@ -542,7 +540,7 @@ mod tests {
             ok(1)
         });
         let progress: Arc<Progress> = Arc::default();
-        let mut w = Window::new(Arc::clone(&progress), worker, start);
+        let mut w = Window::new(Arc::clone(&progress), worker, start, Lang::En);
 
         assert_eq!(w.on_cancel(), vec![Action::Cancelling]);
         assert!(progress.is_cancelled());
@@ -559,10 +557,10 @@ mod tests {
 
     #[test]
     fn running_copy() {
-        assert_eq!(caption(0), "Reduct");
-        assert_eq!(caption(1), "Optimising 1 image");
-        assert_eq!(caption(10), "Optimising 10 images");
-        assert_eq!(status(0, 0), "Preparing\u{2026}");
-        assert_eq!(status(4, 10), "4 of 10 done");
+        assert_eq!(Lang::En.progress_caption(0), "Reduct");
+        assert_eq!(Lang::En.progress_caption(1), "Optimising 1 image");
+        assert_eq!(Lang::En.progress_caption(10), "Optimising 10 images");
+        assert_eq!(Lang::En.progress_status(0, 0), "Preparing\u{2026}");
+        assert_eq!(Lang::En.progress_status(4, 10), "4 of 10 done");
     }
 }

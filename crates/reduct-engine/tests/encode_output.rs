@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use reduct_common::lang::Lang;
 use reduct_common::naming::{plan_outputs, OutputLocation, SuffixStyle};
 use reduct_engine::{commit, decode, encode_jpeg, init_com_mta};
 
@@ -66,8 +67,10 @@ fn commit_takes_next_suffix_when_target_appears() {
     let source = dir.join("a.png");
 
     let planned =
-        plan_outputs(&[source], SuffixStyle::Underscore, OutputLocation::NextToOriginal, &|p: &Path| p.exists())
-            .remove(0);
+        plan_outputs(&[source], SuffixStyle::Underscore, OutputLocation::NextToOriginal, Lang::En, &|p: &Path| {
+            p.exists()
+        })
+        .remove(0);
     assert_eq!(planned.target(), dir.join("a.jpg"));
 
     // Someone else creates a.jpg between planning and committing.

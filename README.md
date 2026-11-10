@@ -38,6 +38,10 @@ Start Reduct from the Start menu to open its settings.
 
 The settings window also shows whether HEIC support is installed and links to the third-party licences.
 
+## Languages
+
+Reduct is in English and Dutch. It follows the Windows display language: Dutch when Dutch (Netherlands or Belgium) comes before English in the Windows language list, English otherwise. The output names follow the language too: the Dutch subfolder is `Geoptimaliseerd` and the Dutch suffix is ` (geoptimaliseerd)`. All UI text is in [crates/reduct-common/src/lang.rs](crates/reduct-common/src/lang.rs). The Store listing texts are in [store/](store/README.md).
+
 ## HEIC and HEIF
 
 Windows does not decode HEIC out of the box. Reduct uses Microsoft's own codecs from the Microsoft Store:
@@ -53,7 +57,7 @@ Windows 11, x64 or ARM64.
 
 ## Install
 
-Microsoft Store (link added once published).
+[Microsoft Store](https://apps.microsoft.com/detail/9n12xrp8dn9v).
 
 ## Building
 

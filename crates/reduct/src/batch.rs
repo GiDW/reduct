@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 use reduct_common::formats::{is_heif, is_jpeg, is_supported};
+use reduct_common::lang::Lang;
 use reduct_common::listfile::read_list;
 use reduct_common::naming::{plan_outputs, Planned};
 use reduct_common::settings::Settings;
@@ -85,19 +86,36 @@ pub struct Finished {
     pub summary: Summary,
     /// The failures log, when something failed.
     pub log: Option<PathBuf>,
-    /// Why the batch couldn't run at all (the list file was unreadable, or
-    /// the worker thread died).
-    pub problem: Option<&'static str>,
+    /// Why the batch couldn't run at all.
+    pub problem: Option<Problem>,
+}
+
+/// Why a batch couldn't run at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Problem {
+    /// The list file couldn't be read.
+    SelectionUnreadable,
+    /// The worker thread died.
+    Crashed,
+}
+
+impl Problem {
+    fn text(self, lang: Lang) -> &'static str {
+        match self {
+            Problem::SelectionUnreadable => lang.text().selection_unreadable,
+            Problem::Crashed => lang.text().something_went_wrong,
+        }
+    }
 }
 
 impl Finished {
-    fn problem(problem: &'static str, log: Option<PathBuf>) -> Finished {
+    fn problem(problem: Problem, log: Option<PathBuf>) -> Finished {
         Finished { summary: Summary::default(), log, problem: Some(problem) }
     }
 
     /// For a worker thread that panicked outside the per-file guard.
     pub fn crashed() -> Finished {
-        Finished::problem("Something went wrong", None)
+        Finished::problem(Problem::Crashed, None)
     }
 
     pub fn has_errors(&self) -> bool {
@@ -114,10 +132,10 @@ impl Finished {
     }
 
     /// The result's headline and detail line.
-    pub fn text(&self) -> (String, String) {
+    pub fn text(&self, lang: Lang) -> (String, String) {
         match self.problem {
-            Some(problem) => ("No images optimised".to_owned(), problem.to_owned()),
-            None => result_text(&self.summary),
+            Some(problem) => (lang.optimised(0, None), problem.text(lang).to_owned()),
+            None => result_text(&self.summary, lang),
         }
     }
 }
@@ -151,14 +169,14 @@ fn run_in(list: &Path, data_dir: &Path, progress: &Progress) -> Finished {
         Err(err) => {
             let reason = format!("could not read the list file: {err}");
             let log = write_failure_log(data_dir, &[(list, reason.as_str())]);
-            return Finished::problem("Couldn't read the selection", log);
+            return Finished::problem(Problem::SelectionUnreadable, log);
         }
     };
     let _ = fs::remove_file(list);
 
     let settings = paths::load_settings_in(data_dir);
     let sources: Vec<PathBuf> = sources.into_iter().filter(|p| is_supported(p)).collect();
-    let planned = plan_outputs(&sources, settings.suffix, settings.output, &|p: &Path| p.exists());
+    let planned = plan_outputs(&sources, settings.suffix, settings.output, Lang::current(), &|p: &Path| p.exists());
 
     progress.set_total(planned.len());
     let outcomes = convert_all(&planned, &settings, progress);
@@ -369,7 +387,8 @@ mod tests {
 
         let finished = run_in(&list, &data, &Progress::default());
         assert_eq!(finished.exit_code(), 1);
-        assert_eq!(finished.text().1, "Couldn't read the selection");
+        assert_eq!(finished.text(Lang::En).1, "Couldn't read the selection");
+        assert_eq!(finished.text(Lang::Nl).1, "Kan de selectie niet lezen");
 
         let logs: Vec<PathBuf> = fs::read_dir(data.join("logs")).unwrap().map(|entry| entry.unwrap().path()).collect();
         let text = fs::read_to_string(&logs[0]).unwrap();

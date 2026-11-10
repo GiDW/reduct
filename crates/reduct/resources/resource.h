@@ -18,6 +18,11 @@
 #define IDC_HEIC_STORE          1011
 #define IDC_LICENCES            1012
 #define IDC_SIZE_HINT           1013
+#define IDC_QUALITY_LABEL       1020
+#define IDC_SAVE_TO_LABEL       1021
+#define IDC_NAME_TAKEN_LABEL    1022
+#define IDC_IMAGE_SIZE_LABEL    1023
+#define IDC_BACKGROUND_LABEL    1024
 
 #define IDC_PROGRESS_STATUS     1101
 #define IDC_PROGRESS_BAR        1102

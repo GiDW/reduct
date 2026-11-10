@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 
+use reduct_common::lang::Lang;
 use reduct_common::naming::{OutputLocation, SuffixStyle};
 use reduct_common::settings::{Background, Settings};
 use windows::core::{w, BOOL, PCWSTR};
@@ -19,8 +20,8 @@ use windows::Win32::UI::Controls::{
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
     DialogBoxParamW, EndDialog, GetDlgItem, GetDlgItemInt, GetWindowRect, MapDialogRect, MessageBoxW,
-    SendDlgItemMessageW, SendMessageW, SetDlgItemTextW, SetWindowPos, ShowWindow, BN_CLICKED, CBN_SELCHANGE,
-    CB_ADDSTRING, CB_GETCURSEL, CB_SETCURSEL, ICON_BIG, ICON_SMALL, IDCANCEL, IDOK, MB_ICONERROR, MB_OK,
+    SendDlgItemMessageW, SendMessageW, SetDlgItemTextW, SetWindowPos, SetWindowTextW, ShowWindow, BN_CLICKED,
+    CBN_SELCHANGE, CB_ADDSTRING, CB_GETCURSEL, CB_SETCURSEL, ICON_BIG, ICON_SMALL, IDCANCEL, IDOK, MB_ICONERROR, MB_OK,
     SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_SHOWNORMAL, WM_CLOSE, WM_COMMAND, WM_INITDIALOG, WM_SETICON,
 };
 
@@ -40,35 +41,20 @@ const IDC_HEIC_STATUS: i32 = 1010;
 const IDC_HEIC_STORE: i32 = 1011;
 const IDC_LICENCES: i32 = 1012;
 const IDC_SIZE_HINT: i32 = 1013;
+const IDC_HINT: i32 = 1001;
+const IDC_QUALITY_LABEL: i32 = 1020;
+const IDC_SAVE_TO_LABEL: i32 = 1021;
+const IDC_NAME_TAKEN_LABEL: i32 = 1022;
+const IDC_IMAGE_SIZE_LABEL: i32 = 1023;
+const IDC_BACKGROUND_LABEL: i32 = 1024;
 
 const ID_OK: i32 = IDOK.0;
 const ID_CANCEL: i32 = IDCANCEL.0;
 
-// Combo box entries; the index of each entry is what the `*_index` and
-// `*_from_index` functions below map to and from.
-const SAVE_TO: [&str; 2] = ["Next to the original", "\"Optimised\" subfolder"];
-const NAME_TAKEN: [&str; 2] = ["Add _2, _3, \u{2026}", "Add (optimised)"];
-/// The `Image size` entries, their long edge (`None`: original size) and the
-/// line shown below the list for each.
-const IMAGE_SIZE: [&str; 5] = [
-    "Original size",
-    "Large: for big screens and TVs (3840 px)",
-    "Medium: for sharing online (2048 px)",
-    "Small: for email and chat apps (1280 px)",
-    "Very small: for attachments and forms (800 px)",
-];
+// The combo box entries are in `reduct_common::lang`; the index of each
+// entry is what the `*_index` and `*_from_index` functions below map to and
+// from. The long edge of each `Image size` entry (`None`: original size):
 const IMAGE_SIZE_EDGES: [Option<u32>; 5] = [None, Some(3840), Some(2048), Some(1280), Some(800)];
-const IMAGE_SIZE_HINTS: [&str; 5] = [
-    "Images keep their size. Only the compression makes the files smaller.",
-    "Sharp on big screens and TVs, with somewhat smaller files. Smaller images stay as they are.",
-    "Fine on any screen, with much smaller files. Smaller images stay as they are.",
-    "Good for email and chat apps, with small files. Smaller images stay as they are.",
-    "For attachments and upload forms with a size limit. Smaller images stay as they are.",
-];
-const BACKGROUND: [&str; 2] = ["White", "Black"];
-
-const HEIC_INSTALLED: &str = "HEIC support: installed";
-const HEIC_MISSING: &str = "HEIC support: missing. HEIC photos need Microsoft's HEVC Video Extensions.";
 /// The Store page of Microsoft's HEVC Video Extensions.
 pub(crate) const HEVC_STORE_URI: &str = "ms-windows-store://pdp/?ProductId=9NMZLZ57R3T7";
 const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.txt";
@@ -157,6 +143,8 @@ unsafe extern "system" fn dialog_proc(hwnd: HWND, msg: u32, wparam: WPARAM, _lpa
 
 fn init_dialog(hwnd: HWND) {
     set_icons(hwnd);
+    let text = Lang::current().text();
+    set_labels(hwnd, text);
     let settings = STATE.with(|s| s.borrow().as_ref().map(|st| st.original.clone())).unwrap_or_default();
 
     // SAFETY (whole block): messages to this dialog's own child controls,
@@ -166,10 +154,10 @@ fn init_dialog(hwnd: HWND) {
         SendDlgItemMessageW(hwnd, IDC_QUALITY_SPIN, UDM_SETRANGE32, WPARAM(1), LPARAM(100));
         SendDlgItemMessageW(hwnd, IDC_QUALITY_SPIN, UDM_SETPOS32, WPARAM(0), LPARAM(settings.quality as isize));
         for (id, entries, selected) in [
-            (IDC_SAVE_TO, &SAVE_TO[..], output_index(settings.output)),
-            (IDC_NAME_TAKEN, &NAME_TAKEN[..], suffix_index(settings.suffix)),
-            (IDC_IMAGE_SIZE, &IMAGE_SIZE[..], limit_index(settings.max_long_edge)),
-            (IDC_BACKGROUND, &BACKGROUND[..], background_index(settings.background)),
+            (IDC_SAVE_TO, &text.save_to_entries[..], output_index(settings.output)),
+            (IDC_NAME_TAKEN, &text.name_taken_entries[..], suffix_index(settings.suffix)),
+            (IDC_IMAGE_SIZE, &text.image_size_entries[..], limit_index(settings.max_long_edge)),
+            (IDC_BACKGROUND, &text.background_entries[..], background_index(settings.background)),
         ] {
             for entry in entries {
                 let text = wide(entry);
@@ -184,7 +172,7 @@ fn init_dialog(hwnd: HWND) {
     // heic_supported() initialises COM as MTA on the calling thread, so it
     // runs on a short-lived thread of its own and leaves this STA alone.
     let supported = std::thread::spawn(reduct_engine::heic_supported).join().unwrap_or(false);
-    let status = wide(if supported { HEIC_INSTALLED } else { HEIC_MISSING });
+    let status = wide(if supported { text.heic_installed } else { text.heic_missing });
     // SAFETY: own child controls; `status` outlives the call.
     unsafe {
         let _ = SetDlgItemTextW(hwnd, IDC_HEIC_STATUS, PCWSTR(status.as_ptr()));
@@ -196,6 +184,31 @@ fn init_dialog(hwnd: HWND) {
     }
     if supported {
         close_store_gap(hwnd);
+    }
+}
+
+/// The caption, labels and buttons in the UI language. The template's own
+/// text is the English, for a dialog shown before this runs.
+fn set_labels(hwnd: HWND, text: &reduct_common::lang::Text) {
+    let caption = wide(text.settings_caption);
+    // SAFETY: own dialog; `caption` outlives the call.
+    let _ = unsafe { SetWindowTextW(hwnd, PCWSTR(caption.as_ptr())) };
+    for (id, label) in [
+        (IDC_HINT, text.settings_hint),
+        (IDC_QUALITY_LABEL, text.quality),
+        (IDC_SAVE_TO_LABEL, text.save_to),
+        (IDC_NAME_TAKEN_LABEL, text.name_taken),
+        (IDC_IMAGE_SIZE_LABEL, text.image_size),
+        (IDC_BACKGROUND_LABEL, text.transparent_areas),
+        (IDC_KEEP_DATE, text.keep_date),
+        (IDC_HEIC_STORE, text.get_from_store),
+        (IDC_LICENCES, text.licences),
+        (ID_OK, text.ok),
+        (ID_CANCEL, text.cancel),
+    ] {
+        let label = wide(label);
+        // SAFETY: own child control; `label` outlives the call.
+        let _ = unsafe { SetDlgItemTextW(hwnd, id, PCWSTR(label.as_ptr())) };
     }
 }
 
@@ -240,7 +253,8 @@ fn close_store_gap(hwnd: HWND) {
 
 /// Shows the line for the selected `Image size` entry below the list.
 fn update_size_hint(hwnd: HWND) {
-    let hint = selection(hwnd, IDC_IMAGE_SIZE).and_then(|i| IMAGE_SIZE_HINTS.get(i)).copied().unwrap_or("");
+    let hints = &Lang::current().text().image_size_hints;
+    let hint = selection(hwnd, IDC_IMAGE_SIZE).and_then(|i| hints.get(i)).copied().unwrap_or("");
     let hint = wide(hint);
     // SAFETY: own child control; `hint` outlives the call.
     let _ = unsafe { SetDlgItemTextW(hwnd, IDC_SIZE_HINT, PCWSTR(hint.as_ptr())) };
@@ -279,7 +293,7 @@ fn on_ok(hwnd: HWND) {
     match paths::save_settings(&apply_form(&original, &form)) {
         Ok(()) => end(hwnd, ID_OK),
         // The dialog stays open so the user can try again or cancel.
-        Err(e) => message_box(hwnd, &format!("Couldn't save the settings: {e}")),
+        Err(e) => message_box(hwnd, &Lang::current().save_failed(&e.to_string())),
     }
 }
 
@@ -293,7 +307,7 @@ fn open_licences(hwnd: HWND) {
         None => {
             let path = paths::data_dir().join(NOTICES_FILE);
             if let Err(e) = std::fs::write(&path, NOTICES_TEXT) {
-                message_box(hwnd, &format!("Couldn't write {}: {e}", path.display()));
+                message_box(hwnd, &Lang::current().write_failed(&path.display().to_string(), &e.to_string()));
                 return;
             }
             path
@@ -311,7 +325,7 @@ pub(crate) fn open(hwnd: HWND, target: &[u16]) {
     // ShellExecuteW reports success with a value above 32.
     if result.0 as isize <= 32 {
         let shown = String::from_utf16_lossy(target.strip_suffix(&[0]).unwrap_or(target));
-        message_box(hwnd, &format!("Couldn't open {shown}."));
+        message_box(hwnd, &Lang::current().open_failed(&shown));
     }
 }
 
@@ -478,26 +492,30 @@ mod tests {
 
     #[test]
     fn indexes_round_trip_and_match_the_entries() {
+        let en = &reduct_common::lang::EN;
         for o in [OutputLocation::NextToOriginal, OutputLocation::Subfolder] {
             assert_eq!(output_from_index(output_index(o)), Some(o));
-            assert!(output_index(o) < SAVE_TO.len());
+            assert!(output_index(o) < en.save_to_entries.len());
         }
         for x in [SuffixStyle::Underscore, SuffixStyle::Optimised] {
             assert_eq!(suffix_from_index(suffix_index(x)), Some(x));
-            assert!(suffix_index(x) < NAME_TAKEN.len());
+            assert!(suffix_index(x) < en.name_taken_entries.len());
         }
         for l in IMAGE_SIZE_EDGES {
             assert_eq!(limit_from_index(limit_index(l)), Some(l));
         }
         // Settings saved before the new entries map onto the same sizes.
-        assert_eq!(IMAGE_SIZE[limit_index(Some(2048))], "Medium: for sharing online (2048 px)");
-        assert_eq!(IMAGE_SIZE[limit_index(Some(3840))], "Large: for big screens and TVs (3840 px)");
+        assert_eq!(en.image_size_entries[limit_index(Some(2048))], "Medium: for sharing online (2048 px)");
+        assert_eq!(en.image_size_entries[limit_index(Some(3840))], "Large: for big screens and TVs (3840 px)");
         for b in [Background::White, Background::Black] {
             assert_eq!(background_from_index(background_index(b)), Some(b));
-            assert!(background_index(b) < BACKGROUND.len());
+            assert!(background_index(b) < en.background_entries.len());
         }
-        assert_eq!(limit_from_index(IMAGE_SIZE.len()), None);
-        assert_eq!(output_from_index(SAVE_TO.len()), None);
+        assert_eq!(limit_from_index(en.image_size_entries.len()), None);
+        assert_eq!(output_from_index(en.save_to_entries.len()), None);
+        // The Dutch entries are in the same order.
+        let nl = &reduct_common::lang::NL;
+        assert_eq!(nl.image_size_entries[limit_index(Some(2048))], "Middel: online delen (2048 px)");
     }
 
     #[test]
