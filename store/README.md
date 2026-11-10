@@ -36,7 +36,7 @@ The `store` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) needs
 
 Create the environment before the first tag. When a job names an environment that doesn't exist, GitHub creates it without protection rules, and the job would run without waiting for approval (and fail for lack of secrets).
 
-The API needs the app to have one submission completed in Partner Center first, which Reduct has. Once a submission is made by the API, change it only through the API: editing it in Partner Center leaves it stuck.
+The API needs the app to have one submission completed in Partner Center first, which Reduct has. Reduct is on Pricing Version 2 (Partner Center shows "Review price per market"), for which the API can't read the price, so the script leaves pricing out of the submission: set the price and the markets in Partner Center only. Once a submission is made by the API, change it only through the API: editing it in Partner Center leaves it stuck.
 
 ## Fields and limits
 

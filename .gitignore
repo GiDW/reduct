@@ -2,3 +2,4 @@
 /out/
 /stage/
 /.superpowers/
+__pycache__/

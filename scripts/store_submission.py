@@ -70,6 +70,13 @@ MAX_KEYWORDS = 7
 MAX_KEYWORD = 30
 MAX_KEYWORD_WORDS = 21
 
+# Fields left out of the submission sent back to the API: the ones it fills
+# in itself, and `pricing`. Reduct is on Pricing Version 2 (Partner Center
+# shows "Review price per market"), for which the API returns the price as an
+# unknown tier. Sending that back could change the price, so the price is
+# managed in Partner Center only.
+OMITTED_FIELDS = ("id", "status", "statusDetails", "fileUploadUrl", "pricing")
+
 # A single PUT to the upload URL is limited to 64 MB at the SAS API version
 # the Store hands out (sv=2014-02-14).
 MAX_UPLOAD = 64 * 1024 * 1024
@@ -468,9 +475,17 @@ def submit(package: Path, version: str, listings: dict[str, Listing]) -> None:
     committed = False
     try:
         build_submission(submission, listings, package.name)
-        # Read-only fields the API fills in itself.
-        body = {k: v for k, v in submission.items() if k not in ("id", "status", "statusDetails", "fileUploadUrl")}
-        request("PUT", f"{apps}/submissions/{sid}", token(), body=body)
+        body = {k: v for k, v in submission.items() if k not in OMITTED_FIELDS}
+        try:
+            request("PUT", f"{apps}/submissions/{sid}", token(), body=body)
+        except Failure as e:
+            if "pricing" in str(e).lower():
+                raise Failure(
+                    f"{e}\nThe API wants the pricing section, which this script leaves out on purpose: "
+                    "Reduct is on Pricing Version 2, for which the API can't read the price. "
+                    "See store/README.md."
+                ) from None
+            raise
         print("Updated the packages and the listings", flush=True)
 
         request("PUT", upload_url, raw=archive, headers={"x-ms-blob-type": "BlockBlob"})
