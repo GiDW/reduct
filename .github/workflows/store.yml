@@ -1,0 +1,56 @@
+name: Store submission
+
+# Submits a release to the Microsoft Store: the package attached to the
+# tag's GitHub Release, with every listing from store/*.md. CI calls this
+# for each v* tag, after its `release` job. Start it by hand (Actions → Store
+# submission → Run workflow, from main) to submit an existing tag again, for
+# example after a failed run.
+#
+# The `microsoft-store` environment holds the Partner Center credentials and
+# needs the maintainer's approval. Setup: store/README.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag: { type: string, required: true }
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to submit, such as v1.1.0"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    environment: microsoft-store
+    concurrency: { group: microsoft-store, cancel-in-progress: false }
+    steps:
+      # The listings and the script come from the ref this runs on: the tag
+      # when CI calls it, main when started by hand.
+      - uses: actions/checkout@v7
+      - name: Download the Store package from the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::'$TAG' is not a v<major>.<minor>.<patch> tag"; exit 1; fi
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.msixupload' --dir out/store
+          ls -l out/store
+      - name: Submit to the Microsoft Store
+        shell: bash
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          # The Store ID from the listing URL, apps.microsoft.com/detail/9n12xrp8dn9v.
+          STORE_APP_ID: 9N12XRP8DN9V
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/store_submission.py submit --package "out/store/Reduct_${TAG#v}.0.msixupload"

@@ -11,7 +11,7 @@ source: https://apps.microsoft.com/detail/9n12xrp8dn9v
 
 # Microsoft Store listings
 
-The text for every Store listing of Reduct, one file per language. These files are the source of truth: for a `v*` tag, CI's `store` job ([scripts/store_submission.py](../scripts/store_submission.py)) submits the package together with every listing, screenshot and logo below, after the maintainer approves the `microsoft-store` deployment. Don't edit the listings in Partner Center: the next release overwrites them.
+The text for every Store listing of Reduct, one file per language. These files are the source of truth: for a `v*` tag, CI's `store` job ([.github/workflows/store.yml](../.github/workflows/store.yml), running [scripts/store_submission.py](../scripts/store_submission.py)) submits the package together with every listing, screenshot and logo below, after the maintainer approves the `microsoft-store` deployment. Don't edit the listings in Partner Center: the next release overwrites them.
 
 The script reads each file by its `## ` headings and the ```` ```text ```` block under each, the caption table by its rows (`| # | `file` | `caption` |`), and the `For <version>.` note above "What's new". Keep that layout. The `store-listing` CI job checks it, and the limits below, on every push. It accepts a "What's new" marked for a version later than `Cargo.toml`, because the text is written before the release commit bumps the version. The `store` job needs an exact match.
 
@@ -26,17 +26,19 @@ The Store only accepts a listing language when the package declares it. The lang
 
 ## Automated submission: one-time setup
 
-The `store` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) needs:
+The `store` job ([.github/workflows/store.yml](../.github/workflows/store.yml)) needs:
 
 1. **An Entra ID app in Partner Center.** Account settings → User management → Microsoft Entra applications → create one (or add an existing one) with the **Manager** role, then add a key. Note the tenant ID, client ID and key. The key expires (at most after two years): renew it before then and update the secret.
 2. **A GitHub environment `microsoft-store`** (Settings → Environments):
    - Required reviewers: the maintainer. Leave "Prevent self-review" off, so the maintainer can approve their own release.
-   - Deployment branches and tags: selected, with the tag rule `v*`.
+   - Deployment branches and tags: selected, with the tag rule `v*` (CI's run for a tag) and the branch rule `main` (a run started by hand).
    - Environment secrets: `STORE_TENANT_ID`, `STORE_CLIENT_ID`, `STORE_CLIENT_SECRET`.
 
-Create the environment before the first tag. When a job names an environment that doesn't exist, GitHub creates it without protection rules, and the job would run without waiting for approval (and fail for lack of secrets).
+Without a required reviewer the job runs without waiting for approval: check the environment's protection rules with `gh api repos/GiDW/reduct/environments/microsoft-store --jq '.protection_rules[].type'`, which must list `required_reviewers`.
 
-The API needs the app to have one submission completed in Partner Center first, which Reduct has. Reduct is on Pricing Version 2 (Partner Center shows "Review price per market"), for which the API can't read the price, so the script leaves pricing out of the submission: set the price and the markets in Partner Center only. Once a submission is made by the API, change it only through the API: editing it in Partner Center leaves it stuck.
+To submit an existing release again, for example after a failed run: **Actions → Store submission → Run workflow**, from `main`, with the tag (`v1.1.0`). It takes the package from that tag's GitHub Release, and the listings and the script from `main`; `Cargo.toml` on `main` must still have that version. Or `gh workflow run store.yml --ref main -f tag=v1.1.0`.
+
+The API needs the app to have one submission completed in Partner Center first, which Reduct has. Reduct is on Pricing Version 2 (Partner Center shows "Review price per market"), for which the API can't read the price. The script sends the pricing back exactly as the API returns it (the API requires it) and prints it in the log: set the price and the markets in Partner Center only. Once a submission is made by the API, change it only through the API: editing it in Partner Center leaves it stuck.
 
 ## Fields and limits
 

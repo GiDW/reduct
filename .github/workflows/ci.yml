@@ -379,29 +379,10 @@ jobs:
           fail_on_unmatched_files: true
 
   store:
-    # Tags v* only: submits the release to the Microsoft Store, with the
-    # package and every listing from store/*.md. The `microsoft-store`
-    # environment holds the Partner Center credentials and needs the
-    # maintainer's approval, so nothing reaches the Store unseen. Setup:
-    # store/README.md.
+    # Tags v* only: submits the release to the Microsoft Store, once the
+    # maintainer approves the `microsoft-store` deployment. See store.yml.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [release, store-listing]
-    runs-on: ubuntu-latest
-    environment: microsoft-store
-    concurrency: { group: microsoft-store, cancel-in-progress: false }
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with: { name: reduct-store, path: out/store }
-      - name: Submit to the Microsoft Store
-        shell: bash
-        env:
-          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
-          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
-          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
-          # The Store ID from the listing URL, apps.microsoft.com/detail/9n12xrp8dn9v.
-          STORE_APP_ID: 9N12XRP8DN9V
-        run: |
-          set -euo pipefail
-          package=$(ls out/store/Reduct_*.msixupload)
-          python3 scripts/store_submission.py submit --package "$package"
+    uses: ./.github/workflows/store.yml
+    with: { tag: "${{ github.ref_name }}" }
+    secrets: inherit

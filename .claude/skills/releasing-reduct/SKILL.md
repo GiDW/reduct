@@ -44,7 +44,8 @@ The tag's run waits at the `store` job for the maintainer. List these steps at t
 
 1. Open the tag's workflow run (`gh run view <id> --web`), check that `release` attached `Reduct_<version>.0.msixupload`, and choose **Review deployments → microsoft-store → Approve and deploy**.
 2. The `store` job creates the submission, replaces the package, the four listings (`en-us`, `en-gb`, `nl-nl`, `nl-be`), the screenshots with their captions and the logos, commits it, and passes once the Store has started processing it. Certification then continues in Partner Center as usual.
-3. If the job fails, its log says why. Before the commit, and after a rejection by the Store, the job deletes its submission, so re-running the job starts clean. If it says a submission is already in progress, delete that one in Partner Center first. If it timed out after the commit, check Partner Center before re-running.
+3. If the job fails, its log says why. Before the commit, and after a rejection by the Store, the job deletes its submission, so a new run starts clean. If it says a submission is already in progress, delete that one in Partner Center first. If it timed out after the commit, check Partner Center before trying again.
+4. To try again after fixing the cause on `main`, don't re-run the tag's job: it would use the tag's old files. Start **Actions → Store submission → Run workflow** from `main` with the tag (`gh workflow run store.yml --ref main -f tag=v<version>`), and approve it the same way.
 
 Don't edit the listings in Partner Center: the next release overwrites them with `store/`.
 
