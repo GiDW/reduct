@@ -87,15 +87,15 @@ Maak foto's kleiner vanuit Verkenner: klik met de rechtermuisknop, kies Optimali
 
 ## Screenshot captions
 
-For Dutch screenshots in the same order as the English ones (see [README.md](README.md#artwork)).
+The Dutch listings reuse the English screenshots in [screenshots/](screenshots/), so the captions don't quote English UI text.
 
 | # | Screenshot | Caption |
 | --- | --- | --- |
-| 1 | Context menu | `Klik met de rechtermuisknop op je foto's en kies Optimaliseren met Reduct` |
-| 2 | Progress window | `Reduct optimaliseert de hele selectie in één keer` |
-| 3 | Result | `Klaar: 13 foto's, 38 MB kleiner` |
-| 4 | Details view | `De JPEG's staan naast de onaangeroerde originelen` |
-| 5 | Settings | `Kies de kwaliteit, waar je opslaat en de afbeeldingsgrootte` |
+| 1 | `1-context-menu.png` | `Selecteer je foto's in Verkenner en optimaliseer ze met een rechtermuisklik` |
+| 2 | `2-progress.png` | `Reduct optimaliseert de hele selectie in één keer` |
+| 3 | `3-result.png` | `Klaar: 13 foto's, 38 MB kleiner` |
+| 4 | `4-details-view.png` | `De JPEG's staan naast de onaangeroerde originelen` |
+| 5 | `5-settings.png` | `Kies de kwaliteit, waar je opslaat en de afbeeldingsgrootte` |
 
 ## Search terms
 

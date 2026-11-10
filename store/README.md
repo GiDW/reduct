@@ -34,8 +34,8 @@ Partner Center only offers a listing language when the package declares it. The 
 
 ## Artwork
 
-These come from [icon/assets](../icon/assets). They are the same for every language unless a listing overrides them.
+The logos come from [icon/assets](../icon/assets). All artwork is shared by every listing unless one overrides it.
 
 - **1:1 box art:** `store-boxart-2160.png`. Without it, the store page shows the 100 px logo from the package, which looks blurry.
 - **1:1 app tile icon:** `store-listing-300.png`.
-- **Screenshots:** 1920 × 1080. The Dutch listings need screenshots of the Dutch UI: Windows set to Dutch, with the 1.1.0 build.
+- **Screenshots:** [screenshots/](screenshots/), 1920 × 1080, numbered in listing order. They show the English UI and are used for every listing, the Dutch ones too. The caption tables in each language file use the same numbers.

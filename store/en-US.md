@@ -87,15 +87,15 @@ Make photos smaller from File Explorer: right-click, choose Optimise with Reduct
 
 ## Screenshot captions
 
-In the order of the current screenshots.
+The screenshots are in [screenshots/](screenshots/), numbered in listing order.
 
 | # | Screenshot | Caption |
 | --- | --- | --- |
-| 1 | Context menu | `Right-click your photos and choose Optimise with Reduct` |
-| 2 | Progress window | `Reduct optimises the whole selection in one go` |
-| 3 | Result | `Done: 13 photos, 38 MB smaller` |
-| 4 | Details view | `The JPEGs sit next to the untouched originals` |
-| 5 | Settings | `Choose the quality, where to save and the image size` |
+| 1 | `1-context-menu.png` | `Right-click your photos and choose Optimise with Reduct` |
+| 2 | `2-progress.png` | `Reduct optimises the whole selection in one go` |
+| 3 | `3-result.png` | `Done: 13 photos, 38 MB smaller` |
+| 4 | `4-details-view.png` | `The JPEGs sit next to the untouched originals` |
+| 5 | `5-settings.png` | `Choose the quality, where to save and the image size` |
 
 ## Search terms
 
